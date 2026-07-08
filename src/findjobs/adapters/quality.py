@@ -1,0 +1,271 @@
+"""Machine-readable quality gates for official-source adapters."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class AdapterQualityGate:
+    """Acceptance evidence required before an adapter can be trusted live."""
+
+    adapter: str
+    fixture: str
+    offline_tests: tuple[str, ...]
+    official_source: bool
+    salary_facts_only: bool
+    target_relevance_filtering: bool
+    algorithm_exclusion: bool
+    stable_identity: bool
+    field_normalization: bool
+    pagination: str
+    deduplication: str
+    detail_enrichment: str
+    live_smoke: str
+    limitations: tuple[str, ...] = ()
+
+
+ADAPTER_QUALITY_GATES: dict[str, AdapterQualityGate] = {
+    "tencent_official": AdapterQualityGate(
+        adapter="tencent_official",
+        fixture="tencent.json",
+        offline_tests=(
+            "TestTencentParseWithRequirement",
+            "TestTencentCollectDetail",
+            "TestTencentCollectMultiKeyword",
+        ),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="TARGET_KEYWORDS with total/short-page stop",
+        deduplication="PostId, fallback title+location",
+        detail_enrichment="required: ByPostId fills missing Requirement",
+        live_smoke="2026-07-01 completed: 304 target jobs",
+    ),
+    "baidu_official": AdapterQualityGate(
+        adapter="baidu_official",
+        fixture="baidu.json",
+        offline_tests=("TestBaiduAdapter",),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="TARGET_KEYWORDS with total count",
+        deduplication="postId, fallback title+location",
+        detail_enrichment="list API exposes description fields used by fixture",
+        live_smoke="2026-07-01 completed: 176 target jobs",
+    ),
+    "bytedance_official": AdapterQualityGate(
+        adapter="bytedance_official",
+        fixture="bytedance.json",
+        offline_tests=("TestByteDanceAdapter", "TestFeishuOfficialCollectStrategy"),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="delegates large-source collection to feishu_official",
+        deduplication="delegates to feishu_official",
+        detail_enrichment="Feishu item fields include description/requirements when exposed",
+        live_smoke="2026-07-01 completed: 1595 target jobs",
+    ),
+    "feishu_official": AdapterQualityGate(
+        adapter="feishu_official",
+        fixture="feishu.json",
+        offline_tests=("TestFeishuOfficialAdapter", "TestFeishuOfficialCollectStrategy"),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="blank full scan for small sites; TARGET_KEYWORDS for large sites",
+        deduplication="id/job_id, fallback title+location",
+        detail_enrichment="standard Feishu fields include job description and requirements",
+        live_smoke="2026-07-01 completed for Xiaomi/Zhipu/MiniMax/01.AI/Baichuan/ModelBest",
+    ),
+    "kuaishou_official": AdapterQualityGate(
+        adapter="kuaishou_official",
+        fixture="kuaishou.json",
+        offline_tests=("TestKuaishouOfficialAdapter",),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="TARGET_KEYWORDS with total/short-page stop",
+        deduplication="id, fallback title+location",
+        detail_enrichment="list API exposes job description fields used by fixture",
+        live_smoke="2026-07-01 completed: 138 target jobs",
+    ),
+    "meituan_official": AdapterQualityGate(
+        adapter="meituan_official",
+        fixture="meituan.json",
+        offline_tests=(
+            "TestMeituanOfficialAdapter",
+            "test_collect_fetches_detail_to_fill_requirements",
+            "test_detail_retries_on_transport_error_then_succeeds",
+        ),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="TARGET_KEYWORDS with total pages",
+        deduplication="jobUnionId, fallback title+location",
+        detail_enrichment="required: detail API fills missing jobRequirement",
+        live_smoke="2026-07-01 completed: 109 target jobs",
+    ),
+    "jd_official": AdapterQualityGate(
+        adapter="jd_official",
+        fixture="jd.json",
+        offline_tests=("TestJDOfficialAdapter",),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="TARGET_KEYWORDS plus count endpoint",
+        deduplication="external_id, fallback title+location",
+        detail_enrichment="list API exposes description/requirements used by fixture",
+        live_smoke="2026-07-01 completed: 50 target jobs",
+    ),
+    "netease_official": AdapterQualityGate(
+        adapter="netease_official",
+        fixture="netease.json",
+        offline_tests=("TestNetEaseAdapter", "TestNetEaseCollect"),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="TARGET_KEYWORDS with short-page stop",
+        deduplication="id, fallback title+location",
+        detail_enrichment="list API exposes requirement fields used by fixture",
+        live_smoke="2026-07-01 completed: 103 target jobs",
+    ),
+    "iflytek_official": AdapterQualityGate(
+        adapter="iflytek_official",
+        fixture="iflytek.json",
+        offline_tests=("TestIFlyTekAdapter",),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="TARGET_KEYWORDS with BeiSen PageIndex/PageSize",
+        deduplication="jobAdId, fallback title+location",
+        detail_enrichment="BeiSen list response exposes Duty and Require fields",
+        live_smoke="2026-07-01 completed: 21 target jobs",
+    ),
+    "deepseek_moka": AdapterQualityGate(
+        adapter="deepseek_moka",
+        fixture="deepseek.json",
+        offline_tests=("TestDeepSeekMokaAdapter",),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="TARGET_KEYWORDS plus DeepSeek-specific AGI",
+        deduplication="id, fallback title+location",
+        detail_enrichment="Moka payload includes description and requirements",
+        live_smoke="2026-07-01 completed: 5 target jobs",
+    ),
+    "moka_official": AdapterQualityGate(
+        adapter="moka_official",
+        fixture="deepseek.json",
+        offline_tests=("TestDeepSeekMokaAdapter",),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="TARGET_KEYWORDS through shared Moka adapter",
+        deduplication="id, fallback title+location",
+        detail_enrichment="Moka payload includes description and requirements",
+        live_smoke="2026-07-01 completed for Moonshot AI",
+    ),
+    "antgroup_official": AdapterQualityGate(
+        adapter="antgroup_official",
+        fixture="antgroup.json",
+        offline_tests=("TestAntGroupOfficialAdapter",),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="full official social-search scan with total/short-page stop",
+        deduplication="id, fallback title+location",
+        detail_enrichment="list API exposes description and requirement fields",
+        live_smoke="2026-07-07 verified official API totalCount=951",
+    ),
+    "alibaba_group_official": AdapterQualityGate(
+        adapter="alibaba_group_official",
+        fixture="alibaba_group.json",
+        offline_tests=("TestAlibabaGroupOfficialAdapter",),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="blank scan after XSRF bootstrap plus TARGET_KEYWORDS when blank results cap",
+        deduplication="id, fallback title+location",
+        detail_enrichment="list API exposes description and requirement fields",
+        live_smoke=(
+            "2026-07-07 verified Aliyun/Tongyi/Quark/DingTalk/Holding official APIs"
+        ),
+    ),
+    "alibaba_official": AdapterQualityGate(
+        adapter="alibaba_official",
+        fixture="alibaba.json",
+        offline_tests=("TestAlibabaAdapter",),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="inactive until a stable public official endpoint is verified",
+        deduplication="external id or official URL",
+        detail_enrichment="inactive: detail/requirement completeness not live-verified",
+        live_smoke="reachable page only; source remains inactive",
+        limitations=("inactive", "not live-verified for stable full collection"),
+    ),
+    "generic_official": AdapterQualityGate(
+        adapter="generic_official",
+        fixture="generic_official.json",
+        offline_tests=("TestGenericOfficialAdapter",),
+        official_source=True,
+        salary_facts_only=True,
+        target_relevance_filtering=True,
+        algorithm_exclusion=True,
+        stable_identity=True,
+        field_normalization=True,
+        pagination="inactive fallback parser; no source should be activated on this alone",
+        deduplication="external id or official URL",
+        detail_enrichment="inactive: generic JSON parser cannot guarantee requirements",
+        live_smoke="not sufficient for activation",
+        limitations=("inactive", "fallback parser only"),
+    ),
+}
+
+
+def get_quality_gate(adapter: str) -> AdapterQualityGate | None:
+    """Return quality-gate evidence for an adapter name."""
+    return ADAPTER_QUALITY_GATES.get(adapter)

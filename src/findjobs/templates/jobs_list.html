@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Jobs{% endblock %}
+{% block body %}
+
+<form method="get" class="filters">
+    <input name="q" placeholder="Search title…" value="{{ current.q }}" class="filter-input">
+    <select name="company">
+        <option value="">All companies</option>
+        {% for c in filters.companies %}
+        <option value="{{ c.slug }}" {% if current.company == c.slug %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+    </select>
+    <select name="location">
+        <option value="">All locations</option>
+        {% for loc in filters.locations %}
+        <option value="{{ loc }}" {% if current.location == loc %}selected{% endif %}>{{ loc }}</option>
+        {% endfor %}
+    </select>
+    <select name="job_type">
+        <option value="">All types</option>
+        {% for jt in filters.job_types %}
+        <option value="{{ jt }}" {% if current.job_type == jt %}selected{% endif %}>{{ jt }}</option>
+        {% endfor %}
+    </select>
+    <select name="tag">
+        <option value="">All tags</option>
+        {% for t in filters.tags %}
+        <option value="{{ t }}" {% if current.tag == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+    </select>
+    <select name="status">
+        <option value="">All statuses</option>
+        <option value="active" {% if current.status == "active" %}selected{% endif %}>Active</option>
+        <option value="archived" {% if current.status == "archived" %}selected{% endif %}>Archived</option>
+    </select>
+    <select name="salary_disclosed">
+        <option value="">Salary: Any</option>
+        <option value="true" {% if current.salary_disclosed == "true" %}selected{% endif %}>Disclosed</option>
+        <option value="false" {% if current.salary_disclosed == "false" %}selected{% endif %}>Undisclosed</option>
+    </select>
+    <select name="mark_type">
+        <option value="">All marks</option>
+        <option value="bookmark" {% if current.mark_type == "bookmark" %}selected{% endif %}>Bookmarked</option>
+        <option value="applied" {% if current.mark_type == "applied" %}selected{% endif %}>Applied</option>
+        <option value="ignored" {% if current.mark_type == "ignored" %}selected{% endif %}>Ignored</option>
+    </select>
+    <button type="submit">Filter</button>
+    <a href="/jobs" class="clear">Clear</a>
+</form>
+
+{% if jobs %}
+<table>
+    <thead>
+    <tr>
+        <th>Company</th>
+        <th>Title</th>
+        <th>Location</th>
+        <th>Type</th>
+        <th>Tags</th>
+        <th>Salary</th>
+        <th>Status</th>
+        <th>First Seen</th>
+        <th>Last Seen</th>
+        <th>Marks</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for job in jobs %}
+    <tr>
+        <td>{{ job.company.name if job.company else "" }}</td>
+        <td><a href="/jobs/{{ job.id }}">{{ job.title }}</a></td>
+        <td>{{ job.location }}</td>
+        <td>{{ job.job_type }}</td>
+        <td>{{ parse_tags(job.matched_tags) | join(", ") }}</td>
+        <td>{{ "未披露" if not job.salary_disclosed else job.salary_text }}</td>
+        <td>{{ job.status }}</td>
+        <td>{{ fmt_dt(job.first_seen_at) }}</td>
+        <td>{{ fmt_dt(job.last_seen_at) }}</td>
+        <td>{{ marks_summary(job) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty">No jobs found.</p>
+{% endif %}
+
+{% endblock %}

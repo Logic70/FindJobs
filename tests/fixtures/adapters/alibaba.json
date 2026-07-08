@@ -1,0 +1,33 @@
+{
+  "content": [
+    {
+      "id": "A2001",
+      "name": "AI Application Engineer",
+      "description": "Build AI-powered applications using large language models and RAG",
+      "requirement": "Experience with LLM fine-tuning, LangChain, and vector databases",
+      "location": "Hangzhou",
+      "salary": "30k-50k",
+      "publishTime": "2026-06-28T10:00:00+08:00"
+    },
+    {
+      "id": "A2002",
+      "name": "Security Engineer - Data Security",
+      "description": "Protect enterprise data assets and ensure privacy compliance",
+      "requirement": "Data security, privacy, and risk management experience required",
+      "location": "Hangzhou",
+      "salary": "面议",
+      "publishTime": "2026-06-27T09:00:00+08:00"
+    },
+    {
+      "id": "A2003",
+      "name": "推荐算法工程师",
+      "description": "搜索推荐系统算法优化与实现",
+      "requirement": "熟悉推荐系统召回、排序算法",
+      "location": "Beijing",
+      "salary": "40-60万/年",
+      "publishTime": "2026-06-26T08:00:00+08:00"
+    }
+  ],
+  "totalElements": 3,
+  "totalPages": 1
+}

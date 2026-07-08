@@ -1,0 +1,64 @@
+{
+  "code": 0,
+  "data": {
+    "jobStats": {
+      "orgId": "high-flyer",
+      "total": 3
+    },
+    "jobs": [
+      {
+        "id": "ds-ai-platform",
+        "title": "AI\u5e73\u53f0\u8fd0\u7ef4\u5de5\u7a0b\u5e08",
+        "status": "open",
+        "openedAt": "2026-06-25T00:00",
+        "jobDescription": "<p><strong>\u3010\u5de5\u4f5c\u804c\u8d23\u3011</strong></p><ol><li>\u8d1f\u8d23 AI \u5e73\u53f0\u7684\u7a33\u5b9a\u6027\u3001MLOps \u5de5\u5177\u548c\u63a8\u7406\u670d\u52a1\u8fd0\u7ef4\u3002</li></ol><p><strong>\u3010\u5c97\u4f4d\u8981\u6c42\u3011</strong></p><ol><li>\u719f\u6089 Kubernetes\u3001Linux \u548c\u5927\u6a21\u578b\u63a8\u7406\u670d\u52a1\u3002</li></ol>",
+        "locations": [
+          {
+            "provinceName": "\u5317\u4eac\u5e02",
+            "cityName": "\u6d77\u6dc0\u533a",
+            "address": "\u878d\u79d1\u8d44\u8baf\u4e2d\u5fc3C\u5ea7"
+          },
+          {
+            "provinceName": "\u6d59\u6c5f",
+            "cityName": "\u62f1\u5885\u533a",
+            "address": "\u6c47\u91d1\u56fd\u9645"
+          }
+        ],
+        "zhineng": {
+          "id": 242482,
+          "name": "AI\u5e73\u53f0\u5de5\u7a0b"
+        }
+      },
+      {
+        "id": "ds-ai-search-algo",
+        "title": "AI \u641c\u7d22\u7b97\u6cd5 / \u67b6\u6784\u5de5\u7a0b\u5e08",
+        "status": "open",
+        "openedAt": "2026-06-24T00:00",
+        "jobDescription": "<p>\u8d1f\u8d23 AI \u641c\u7d22\u3001Agent \u548c\u5927\u6a21\u578b\u5e94\u7528\u67b6\u6784\u3002</p>",
+        "locations": [
+          {
+            "provinceName": "\u5317\u4eac\u5e02",
+            "cityName": "\u6d77\u6dc0\u533a"
+          }
+        ],
+        "zhineng": {
+          "id": 16428,
+          "name": "\u67b6\u6784\u5de5\u7a0b"
+        }
+      },
+      {
+        "id": "ds-closed",
+        "title": "AI \u4ea7\u54c1\u8fd0\u8425",
+        "status": "closed",
+        "openedAt": "2026-06-23T00:00",
+        "jobDescription": "<p>\u5df2\u5173\u95ed\u5c97\u4f4d</p>",
+        "locations": [],
+        "zhineng": {
+          "id": 1,
+          "name": "\u4ea7\u54c1\u8fd0\u8425"
+        }
+      }
+    ]
+  },
+  "success": true
+}

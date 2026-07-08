@@ -1,0 +1,33 @@
+{
+  "status": "ok",
+  "data": {
+    "total": "2",
+    "list": [
+      {
+        "education": "",
+        "name": "安全风控产品专家（J85186）",
+        "orgName": "",
+        "postId": "3e4b5b7e-df31-4c2b-9199-e629d65e53af",
+        "jobId": "d699687e-edae-4898-a239-b7a447d4a7c9",
+        "postType": "产品",
+        "publishDate": "2025-05-19",
+        "updateDate": "2026-05-01",
+        "serviceCondition": "-本科及以上学历\n-5年以上B端产品经验\n-熟悉互联网风控场景",
+        "workContent": "-负责安全风控类产品的全生命周期管理\n-跟踪AI风控、隐私计算等技术趋势",
+        "workPlace": "北京市",
+        "bgShortName": "安全与企业效率平台"
+      },
+      {
+        "education": "",
+        "name": "推荐算法工程师（安全方向）",
+        "postId": "7f1a6a21-00a0-4f9f-b842-f7e4c20e0011",
+        "jobId": "b7f0f12c-1e63-431f-8e55-36fbe553f011",
+        "postType": "技术",
+        "publishDate": "2026-01-03",
+        "serviceCondition": "-熟悉推荐系统和排序模型",
+        "workContent": "-负责内容安全相关推荐算法优化",
+        "workPlace": "上海市"
+      }
+    ]
+  }
+}

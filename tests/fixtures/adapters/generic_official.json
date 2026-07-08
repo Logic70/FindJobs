@@ -1,0 +1,34 @@
+{
+  "jobs": [
+    {
+      "id": "G1001",
+      "title": "AI Engineer",
+      "description": "LLM application development and MLOps pipeline design",
+      "location": "Shanghai",
+      "salary": "30k-50k",
+      "type": "full-time",
+      "url": "https://example.com/jobs/G1001",
+      "published_at": "2026-06-28"
+    },
+    {
+      "id": "G1002",
+      "title": "Security Analyst",
+      "description": "Penetration testing and vulnerability assessment for cloud platforms",
+      "location": "Beijing",
+      "salary": "面议",
+      "type": "full-time",
+      "url": "https://example.com/jobs/G1002",
+      "published_at": "2026-06-27"
+    },
+    {
+      "id": "G1003",
+      "title": "算法工程师",
+      "description": "推荐系统算法研究与实现",
+      "location": "Hangzhou",
+      "salary": "",
+      "type": "full-time",
+      "url": "https://example.com/jobs/G1003",
+      "published_at": "2026-06-26"
+    }
+  ]
+}

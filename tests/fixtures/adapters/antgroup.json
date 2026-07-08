@@ -1,0 +1,38 @@
+{
+  "success": true,
+  "errorMsg": null,
+  "errorCode": null,
+  "totalCount": 3,
+  "content": [
+    {
+      "id": 25052604900001,
+      "name": "AI Security Platform Engineer",
+      "positionUrl": "",
+      "categories": ["R&D-Security"],
+      "publishTime": "2026-06-26T07:09:59.000+00:00",
+      "workLocations": ["Beijing", "Hangzhou"],
+      "description": "Build AI security platform, LLM risk controls, and incident response automation.",
+      "requirement": "Experience with AppSec, LLM security, MLOps, and secure engineering."
+    },
+    {
+      "id": 25052604900002,
+      "name": "\u5b89\u5168\u7b97\u6cd5\u4e13\u5bb6",
+      "positionUrl": "",
+      "categories": ["\u6280\u672f\u7c7b-\u5b89\u5168-\u7b97\u6cd5"],
+      "publishTime": "2026-06-20T08:00:00.000+00:00",
+      "workLocations": ["\u5317\u4eac"],
+      "description": "\u8d1f\u8d23AI\u5b89\u5168\u7b97\u6cd5\u5efa\u8bbe\u548c\u6a21\u578b\u8bad\u7ec3\u3002",
+      "requirement": "\u719f\u6089\u673a\u5668\u5b66\u4e60\u548c\u7b97\u6cd5\u5de5\u7a0b\u3002"
+    },
+    {
+      "id": 25052604900003,
+      "name": "\u98ce\u63a7\u7b56\u7565\u4e13\u5bb6",
+      "positionUrl": "",
+      "categories": ["\u4e1a\u52a1-\u98ce\u9669\u7b56\u7565"],
+      "publishTime": "2026-06-19T08:00:00.000+00:00",
+      "workLocations": ["\u676d\u5dde"],
+      "description": "\u8d1f\u8d23\u4ea4\u6613\u98ce\u9669\u7b56\u7565\u3001\u7528\u6237\u5206\u5c42\u3001\u7ecf\u8425\u6307\u6807\u5206\u6790\u548c\u7b56\u7565\u6548\u679c\u590d\u76d8\u3002",
+      "requirement": "\u719f\u6089SQL\u3001BI\u548c\u98ce\u9669\u7ba1\u7406\u65b9\u6cd5\u8bba\u3002"
+    }
+  ]
+}

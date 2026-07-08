@@ -1,0 +1,34 @@
+{
+  "code": 0,
+  "data": {
+    "count": 2,
+    "job_post_list": [
+      {
+        "id": "7650000000000000001",
+        "title": "AI\u5168\u6808\u5f00\u53d1\u5de5\u7a0b\u5e08",
+        "description": "\u6784\u5efaB\u7aefAgent\u5e73\u53f0\uff0c\u8d1f\u8d23RAG\u3001\u5de5\u5177\u8c03\u7528\u548c\u63a8\u7406\u90e8\u7f72\u3002",
+        "requirement": "\u5177\u5907\u5927\u6a21\u578b\u5e94\u7528\u3001MLOps\u6216AI\u5de5\u7a0b\u7ecf\u9a8c\u3002",
+        "publish_time": "2026-06-01T10:00:00+08:00",
+        "city_list": [
+          {"i18n_name": "\u5317\u4eac"},
+          {"i18n_name": "\u676d\u5dde"}
+        ],
+        "job_category": {"i18n_name": "\u7814\u53d1"},
+        "job_post_info": {
+          "min_salary": null,
+          "max_salary": null,
+          "currency": "CNY"
+        }
+      },
+      {
+        "id": "7650000000000000002",
+        "title": "\u5927\u6a21\u578b\u7b97\u6cd5\u5de5\u7a0b\u5e08",
+        "description": "\u8d1f\u8d23\u6a21\u578b\u8bad\u7ec3\u548c\u7b97\u6cd5\u4f18\u5316\u3002",
+        "requirement": "\u719f\u6089\u6df1\u5ea6\u5b66\u4e60\u7b97\u6cd5\u3002",
+        "city_list": [{"i18n_name": "\u5317\u4eac"}],
+        "job_category": {"i18n_name": "\u7814\u53d1"}
+      }
+    ]
+  },
+  "_website_path": "index"
+}

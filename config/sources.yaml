@@ -1,0 +1,342 @@
+# FindJobs — company & source configuration
+#
+# Set is_active: true only after the official endpoint has a dedicated adapter
+# and live smoke evidence. Certain vendor entries are excluded via the config
+# validator.
+#
+# The `adapter` field selects which parser to use for each source.
+# Verified live sources use dedicated adapters. Unverified sources remain
+# inactive until their official endpoints are validated.
+
+companies:
+  - slug: tencent
+    name: Tencent
+    description: Tencent Holdings Ltd
+    homepage_url: https://www.tencent.com
+    careers_url: https://careers.tencent.com
+
+  - slug: alibaba
+    name: Alibaba Group
+    description: Alibaba Group Holding Ltd
+    homepage_url: https://www.alibabagroup.com
+    careers_url: https://talent.alibaba.com
+
+  - slug: baidu
+    name: Baidu
+    description: Baidu Inc
+    homepage_url: https://www.baidu.com
+    careers_url: https://talent.baidu.com
+
+  - slug: bytedance
+    name: ByteDance
+    description: ByteDance Ltd
+    homepage_url: https://www.bytedance.com
+    careers_url: https://jobs.bytedance.com
+
+  - slug: kuaishou
+    name: Kuaishou
+    description: Kuaishou Technology
+    homepage_url: https://www.kuaishou.com
+    careers_url: https://zhaopin.kuaishou.cn
+
+  - slug: xiaomi
+    name: Xiaomi
+    description: Xiaomi Corporation
+    homepage_url: https://www.mi.com
+    careers_url: https://xiaomi.jobs.f.mioffice.cn
+
+  - slug: meituan
+    name: Meituan
+    description: Meituan
+    homepage_url: https://www.meituan.com
+    careers_url: https://zhaopin.meituan.com
+
+  - slug: antgroup
+    name: Ant Group
+    description: Ant Group Co Ltd
+    homepage_url: https://www.antgroup.com
+    careers_url: https://talent.antgroup.com
+
+  - slug: sensetime
+    name: SenseTime
+    description: SenseTime Group Inc
+    homepage_url: https://www.sensetime.com
+    careers_url: https://hr.sensetime.com
+
+  - slug: jd
+    name: JD.com
+    description: JD.com Inc
+    homepage_url: https://www.jd.com
+    careers_url: https://zhaopin.jd.com
+
+  - slug: netease
+    name: NetEase
+    description: NetEase Inc
+    homepage_url: https://www.163.com
+    careers_url: https://hr.163.com
+
+  - slug: iflytek
+    name: iFlytek
+    description: iFlytek Co Ltd
+    homepage_url: https://www.iflytek.com
+    careers_url: https://iflytek.zhiye.com
+
+  - slug: deepseek
+    name: DeepSeek
+    description: DeepSeek AI
+    homepage_url: https://www.deepseek.com
+    careers_url: https://app.mokahr.com/social-recruitment/high-flyer/140576
+
+  - slug: zhipu
+    name: Z.ai
+    description: Zhipu AI
+    homepage_url: https://www.zhipuai.cn
+    careers_url: https://www.zhipuai.cn/zh/joinus
+
+  - slug: moonshot
+    name: Moonshot AI
+    description: Moonshot AI / Kimi
+    homepage_url: https://www.moonshot.ai
+    careers_url: https://careers.kimi.com
+
+  - slug: minimax
+    name: MiniMax
+    description: MiniMax AI
+    homepage_url: https://www.minimaxi.com
+    careers_url: https://www.minimaxi.com/careers
+
+  - slug: 01ai
+    name: 01.AI
+    description: Lingyiwanwu / 01.AI
+    homepage_url: https://www.01.ai
+    careers_url: https://01ai.jobs.feishu.cn
+
+  - slug: baichuan
+    name: Baichuan AI
+    description: Baichuan Intelligence
+    homepage_url: https://www.baichuan-ai.com
+    careers_url: https://cq6qe6bvfr6.jobs.feishu.cn
+
+  - slug: modelbest
+    name: ModelBest
+    description: ModelBest / MiniCPM
+    homepage_url: https://modelbest.cn
+    careers_url: https://modelbest.jobs.feishu.cn
+
+sources:
+  - slug: tencent-careers
+    name: Tencent Official Careers
+    company_slug: tencent
+    source_type: official_careers
+    base_url: https://careers.tencent.com
+    fetch_url: https://careers.tencent.com/tencentcareer/api/post/Query?timestamp=1710000000000&countryId=&cityId=&bgIds=&productId=&categoryId=&parentCategoryId=&attrId=&keyword=%E5%AE%89%E5%85%A8&pageIndex=1&pageSize=50&language=zh-cn&area=cn
+    adapter: tencent_official
+    is_active: true
+
+  - slug: alibaba-talent
+    name: Alibaba Global Talent
+    company_slug: alibaba
+    source_type: official_careers
+    base_url: https://talent.alibaba.com
+    fetch_url: https://talent.alibaba.com/api/v1/jobs
+    adapter: alibaba_official
+    is_active: false
+    inactive_reason: Central official directory; stable job APIs are collected from verified Alibaba business sub-sites below.
+
+  - slug: alibaba-aliyun-careers
+    name: Alibaba Cloud Careers
+    company_slug: alibaba
+    source_type: official_careers
+    base_url: https://careers.aliyun.com
+    fetch_url: https://careers.aliyun.com/position/search
+    adapter: alibaba_group_official
+    is_active: true
+
+  - slug: alibaba-tongyi-careers
+    name: Alibaba Tongyi Careers
+    company_slug: alibaba
+    source_type: official_careers
+    base_url: https://careers-tongyi.alibaba.com
+    fetch_url: https://careers-tongyi.alibaba.com/position/search
+    adapter: alibaba_group_official
+    is_active: true
+
+  - slug: alibaba-quark-careers
+    name: Alibaba Quark Careers
+    company_slug: alibaba
+    source_type: official_careers
+    base_url: https://talent.quark.cn
+    fetch_url: https://talent.quark.cn/position/search
+    adapter: alibaba_group_official
+    is_active: true
+
+  - slug: alibaba-dingtalk-careers
+    name: Alibaba DingTalk Careers
+    company_slug: alibaba
+    source_type: official_careers
+    base_url: https://talent.dingtalk.com
+    fetch_url: https://talent.dingtalk.com/position/search
+    adapter: alibaba_group_official
+    is_active: true
+
+  - slug: alibaba-holding-careers
+    name: Alibaba Holding Careers
+    company_slug: alibaba
+    source_type: official_careers
+    base_url: https://talent-holding.alibaba.com
+    fetch_url: https://talent-holding.alibaba.com/position/search
+    adapter: alibaba_group_official
+    is_active: true
+
+  - slug: baidu-talent
+    name: Baidu Talent
+    company_slug: baidu
+    source_type: official_careers
+    base_url: https://talent.baidu.com
+    fetch_url: https://talent.baidu.com/httservice/getPostListNew
+    adapter: baidu_official
+    is_active: true
+
+  - slug: bytedance-careers
+    name: ByteDance Careers
+    company_slug: bytedance
+    source_type: official_careers
+    base_url: https://jobs.bytedance.com
+    fetch_url: ""
+    adapter: bytedance_official
+    is_active: true
+
+  - slug: kuaishou-zhaopin
+    name: Kuaishou Recruitment
+    company_slug: kuaishou
+    source_type: official_careers
+    base_url: https://zhaopin.kuaishou.cn
+    fetch_url: https://zhaopin.kuaishou.cn/recruit/e/api/v1/open/positions/simple
+    adapter: kuaishou_official
+    is_active: true
+
+  - slug: xiaomi-careers
+    name: Xiaomi Feishu Careers
+    company_slug: xiaomi
+    source_type: official_careers
+    base_url: https://xiaomi.jobs.f.mioffice.cn
+    fetch_url: ""
+    adapter: feishu_official
+    is_active: true
+
+  - slug: meituan-zhaopin
+    name: Meituan Recruitment
+    company_slug: meituan
+    source_type: official_careers
+    base_url: https://zhaopin.meituan.com
+    fetch_url: https://zhaopin.meituan.com/api/official/job/getJobList
+    adapter: meituan_official
+    is_active: true
+
+  - slug: antgroup-talent
+    name: Ant Group Talent
+    company_slug: antgroup
+    source_type: official_careers
+    base_url: https://talent.antgroup.com
+    fetch_url: https://hrcareersweb.antgroup.com/api/social/position/search
+    adapter: antgroup_official
+    is_active: true
+
+  - slug: sensetime-careers
+    name: SenseTime Careers
+    company_slug: sensetime
+    source_type: official_careers
+    base_url: https://hr.sensetime.com
+    fetch_url: ""
+    adapter: feishu_official
+    is_active: true
+
+  - slug: jd-zhaopin
+    name: JD Recruitment
+    company_slug: jd
+    source_type: official_careers
+    base_url: https://zhaopin.jd.com
+    fetch_url: https://zhaopin.jd.com/web/job/job_list
+    adapter: jd_official
+    is_active: true
+
+  - slug: netease-hr
+    name: NetEase HR
+    company_slug: netease
+    source_type: official_careers
+    base_url: https://hr.163.com
+    fetch_url: https://hr.163.com/api/hr163/position/queryPage
+    adapter: netease_official
+    is_active: true
+
+  - slug: iflytek-careers
+    name: iFlytek Careers
+    company_slug: iflytek
+    source_type: official_careers
+    base_url: https://iflytek.zhiye.com
+    fetch_url: https://iflytek.zhiye.com/api/Jobad/GetJobAdPageList
+    adapter: iflytek_official
+    is_active: true
+
+  - slug: deepseek-careers
+    name: DeepSeek Careers
+    company_slug: deepseek
+    source_type: official_careers
+    base_url: https://app.mokahr.com/social-recruitment/high-flyer/140576
+    fetch_url: https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2
+    adapter: deepseek_moka
+    is_active: true
+
+  - slug: zhipu-join-us
+    name: Z.ai Feishu Careers
+    company_slug: zhipu
+    source_type: official_careers
+    base_url: https://zhipu-ai.jobs.feishu.cn
+    fetch_url: ""
+    adapter: feishu_official
+    is_active: true
+
+  - slug: moonshot-careers
+    name: Moonshot Moka Careers
+    company_slug: moonshot
+    source_type: official_careers
+    base_url: https://app.mokahr.com/apply/moonshot/148506#/jobs
+    fetch_url: https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2
+    adapter: moka_official
+    is_active: true
+
+  - slug: minimax-careers
+    name: MiniMax Feishu Careers
+    company_slug: minimax
+    source_type: official_careers
+    base_url: https://vrfi1sk8a0.jobs.feishu.cn
+    fetch_url: ""
+    adapter: feishu_official
+    is_active: true
+
+  - slug: 01ai-feishu
+    name: 01.AI Feishu Careers
+    company_slug: 01ai
+    source_type: official_careers
+    base_url: https://01ai.jobs.feishu.cn
+    fetch_url: ""
+    adapter: feishu_official
+    is_active: true
+
+  - slug: baichuan-feishu
+    name: Baichuan AI Feishu Careers
+    company_slug: baichuan
+    source_type: official_careers
+    base_url: https://cq6qe6bvfr6.jobs.feishu.cn
+    fetch_url: ""
+    adapter: feishu_official
+    is_active: true
+
+  - slug: modelbest-feishu
+    name: ModelBest Feishu Careers
+    company_slug: modelbest
+    source_type: official_careers
+    base_url: https://modelbest.jobs.feishu.cn
+    fetch_url: ""
+    adapter: feishu_official
+    is_active: true

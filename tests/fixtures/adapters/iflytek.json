@@ -1,0 +1,43 @@
+{
+  "Code": 200,
+  "Count": 3,
+  "Data": [
+    {
+      "JobAdId": "IF1001",
+      "JobAdName": "安全解决方案工程师",
+      "ClassificationOne": "技术类",
+      "Kind": "全职",
+      "Category": ["1"],
+      "LocNames": ["合肥", "北京"],
+      "Duty": "负责安全解决方案的设计与实施，包括网络安全架构评估、安全产品选型与部署。",
+      "Require": "3年以上安全领域工作经验，熟悉主流安全产品，有CISSP/CISP认证优先。",
+      "PostDate": "2026-06-15T00:00:00",
+      "Salary": null
+    },
+    {
+      "JobAdId": "IF1002",
+      "JobAdName": "AI安全算法工程师",
+      "ClassificationOne": "算法类",
+      "Kind": "全职",
+      "Category": ["1"],
+      "LocNames": ["合肥"],
+      "Duty": "负责AI安全算法研发，包括对抗样本检测、模型安全评估。",
+      "Require": "熟悉深度学习算法，有安全背景优先。",
+      "PostDate": "2026-06-14T00:00:00",
+      "Salary": null
+    },
+    {
+      "JobAdId": "IF1003",
+      "JobAdName": "市场经理",
+      "ClassificationOne": "产品类",
+      "Kind": "全职",
+      "Category": ["1"],
+      "LocNames": ["合肥"],
+      "Duty": "负责安全产品市场推广，利用AI技术提升营销效果和客户转化率。",
+      "Require": "3年以上B2B市场经验，有安全行业背景优先。",
+      "PostDate": "2026-06-13T00:00:00",
+      "Salary": null
+    }
+  ],
+  "Total": 0
+}

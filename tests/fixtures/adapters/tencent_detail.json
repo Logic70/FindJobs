@@ -1,0 +1,13 @@
+{
+  "Code": 200,
+  "Data": {
+    "PostId": "T2001",
+    "RecruitPostName": "AI Security Engineer",
+    "LocationName": "Shenzhen",
+    "CategoryName": "技术类",
+    "Responsibility": "LLM security research and red teaming to protect our AI systems",
+    "Requirement": "MS/PhD in Computer Science or related field; 3+ years in AI security; proficiency in Python and C++",
+    "PostURL": "https://careers.tencent.com/en-us/job/T2001",
+    "LastUpdateTime": "2026年06月18日"
+  }
+}

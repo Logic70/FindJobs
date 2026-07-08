@@ -1,0 +1,56 @@
+{
+  "success": true,
+  "errorMsg": null,
+  "errorCode": null,
+  "content": {
+    "datas": [
+      {
+        "trackId": "SSP-fixture-ai",
+        "positionUrl": "/off-campus/position-detail?positionId=100015383016&track_id=SSP-fixture-ai",
+        "id": 100015383016,
+        "name": "\u963f\u91cc\u4e91\u667a\u80fd-AI Agent\u5e73\u53f0\u5de5\u7a0b\u5e08-\u5317\u4eac",
+        "categories": ["\u7814\u53d1"],
+        "publishTime": 1783391002000,
+        "workLocations": ["\u5317\u4eac"],
+        "description": "Build AI Agent platform, LLM application infrastructure, and inference services.",
+        "requirement": "Experience with Python, MLOps, distributed systems, and production LLM applications."
+      },
+      {
+        "trackId": "SSP-fixture-security",
+        "positionUrl": "/off-campus/position-detail?positionId=100015383017&track_id=SSP-fixture-security",
+        "id": 100015383017,
+        "name": "Cloud Security Engineer",
+        "categories": ["Security Engineering"],
+        "publishTime": 1783300000000,
+        "workLocations": ["Hangzhou", "Shanghai"],
+        "description": "Build cloud security platform, vulnerability response, and detection systems.",
+        "requirement": "AppSec, cloud security, WAF, zero trust, and incident response experience."
+      },
+      {
+        "trackId": "SSP-fixture-algo",
+        "positionUrl": "/off-campus/position-detail?positionId=100015383018&track_id=SSP-fixture-algo",
+        "id": 100015383018,
+        "name": "\u901a\u4e49-\u7b97\u6cd5\u4e13\u5bb6-\u591a\u8bed\u8a00\u5927\u6a21\u578b",
+        "categories": ["\u7b97\u6cd5"],
+        "publishTime": 1783300000000,
+        "workLocations": ["\u676d\u5dde"],
+        "description": "\u8d1f\u8d23\u5927\u6a21\u578b\u7b97\u6cd5\u8bad\u7ec3\u548c\u8bc4\u4f30\u3002",
+        "requirement": "\u719f\u6089\u6df1\u5ea6\u5b66\u4e60\u7b97\u6cd5\u3002"
+      },
+      {
+        "trackId": "SSP-fixture-risk",
+        "positionUrl": "/off-campus/position-detail?positionId=100015383019&track_id=SSP-fixture-risk",
+        "id": 100015383019,
+        "name": "\u57fa\u7840\u8bbe\u65bd\u8d44\u4ea7\u7ba1\u7406\u4e13\u5bb6-\u8d44\u4ea7\u5b89\u5168\u4e0e\u98ce\u63a7\u7ba1\u7406-\u676d\u5dde",
+        "categories": ["\u7ba1\u7406"],
+        "publishTime": 1783300000000,
+        "workLocations": ["\u676d\u5dde"],
+        "description": "\u8d1f\u8d23\u8d44\u4ea7\u5185\u63a7\u5ba1\u8ba1\u3001\u4f9b\u5e94\u94fe\u98ce\u63a7\u3001\u7ecf\u8425\u5206\u6790\u548c\u6d41\u7a0b\u6cbb\u7406\u3002",
+        "requirement": "\u719f\u6089\u98ce\u63a7\u65b9\u6cd5\u8bba\u3001\u6570\u636e\u5206\u6790\u548c\u5408\u89c4\u4f53\u7cfb\u3002"
+      }
+    ],
+    "totalCount": 4,
+    "pageSize": 50,
+    "currentPage": 1
+  }
+}

@@ -1,0 +1,33 @@
+.venv/
+.uv-cache/
+data/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.egg-info/
+*.log
+.agents/
+.claude-bypass-runs/
+
+# Personal profile (contains background, salary expectations, excluded companies)
+profile/profile.md
+
+# Personal resume/source documents
+*.docx
+*.pdf
+
+# Generated reports (recreated each weekly run)
+reports/weekly/*.jsonl
+reports/weekly/*.csv
+reports/weekly/*.md
+reports/weekly/*-analysis-manifest.json
+reports/weekly/opencode-*.md
+reports/match/*-matches.md
+reports/match/*-career-advice.md
+reports/match/*-profile-needed.md
+reports/match/*-priorities.md
+reports/priority/*.md
+reports/adapter-repair/*.md
+
+# Runtime database and cache
+*.db

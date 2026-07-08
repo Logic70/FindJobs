@@ -1,0 +1,25 @@
+{
+  "Code": 200,
+  "Data": {
+    "Posts": [
+      {
+        "PostId": "T2001",
+        "RecruitPostName": "AI Security Engineer",
+        "LocationName": "Shenzhen",
+        "CategoryName": "技术类",
+        "Responsibility": "LLM security research and red teaming to protect our AI systems",
+        "PostURL": "https://careers.tencent.com/en-us/job/T2001",
+        "LastUpdateTime": "2026年06月18日"
+      },
+      {
+        "PostId": "T2002",
+        "RecruitPostName": "算法工程师",
+        "LocationName": "Beijing",
+        "CategoryName": "技术类",
+        "Responsibility": "负责推荐系统算法优化与排序模型迭代",
+        "PostURL": "https://careers.tencent.com/en-us/job/T2002",
+        "LastUpdateTime": "2026年06月17日"
+      }
+    ]
+  }
+}

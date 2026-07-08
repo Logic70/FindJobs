@@ -1,0 +1,35 @@
+{
+  "code": 0,
+  "data": {
+    "posts": [
+      {
+        "id": "T1001",
+        "name": "AI Security Engineer",
+        "location": "Shenzhen",
+        "category": "技术类",
+        "description": "LLM security research and red teaming to protect our AI systems",
+        "post_url": "https://careers.tencent.com/en-us/job/T1001",
+        "publish_time": "2026-06-28"
+      },
+      {
+        "id": "T1002",
+        "name": "算法工程师",
+        "location": "Beijing",
+        "category": "技术类",
+        "description": "负责推荐系统算法优化与排序模型迭代",
+        "post_url": "https://careers.tencent.com/en-us/job/T1002",
+        "publish_time": "2026-06-27"
+      },
+      {
+        "id": "T1003",
+        "name": "Software Engineer",
+        "location": "Guangzhou",
+        "category": "技术类",
+        "description": "Full-stack web development for internal tools",
+        "post_url": "https://careers.tencent.com/en-us/job/T1003",
+        "publish_time": "2026-06-26"
+      }
+    ],
+    "total": 3
+  }
+}

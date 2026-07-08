@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Runs{% endblock %}
+{% block body %}
+
+<h2>Collection Runs</h2>
+
+{% if runs %}
+<table>
+    <thead>
+    <tr>
+        <th>Source</th>
+        <th>Status</th>
+        <th>Started</th>
+        <th>Finished</th>
+        <th>Found</th>
+        <th>New</th>
+        <th>Errors</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for run in runs %}
+    <tr>
+        <td>{{ run.source.name if run.source else "-" }}</td>
+        <td>{{ run.status }}</td>
+        <td>{{ fmt_dt(run.started_at) }}</td>
+        <td>{{ fmt_dt(run.finished_at) }}</td>
+        <td>{{ run.jobs_found }}</td>
+        <td>{{ run.jobs_new }}</td>
+        <td>{{ run.errors or "" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty">No collection runs recorded.</p>
+{% endif %}
+
+{% endblock %}

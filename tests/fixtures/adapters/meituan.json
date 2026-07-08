@@ -1,0 +1,45 @@
+{
+  "status": 1,
+  "message": "\u6210\u529f",
+  "data": {
+    "list": [
+      {
+        "jobUnionId": "4158839535",
+        "name": "\u9a91\u624b\u5b89\u5168\u57f9\u8bad\u4e13\u5bb6",
+        "jobType": "3",
+        "jobSpecialCode": "5",
+        "jobStatus": "000",
+        "jobFamily": "\u804c\u80fd\u7c7b",
+        "jobFamilyGroup": "\u516c\u53f8\u4e8b\u52a1",
+        "cityList": [
+          {"code": "001001", "name": "\u5317\u4eac\u5e02"}
+        ],
+        "department": [
+          {"name": "\u6838\u5fc3\u672c\u5730\u5546\u4e1a-\u5230\u5bb6\u5c65\u7ea6\u5e73\u53f0"}
+        ],
+        "jobDuty": "\u8d1f\u8d23\u5b89\u5168\u6559\u80b2\u7b56\u7565\u548c\u98ce\u9669\u5904\u7f6e\u3002",
+        "jobRequirement": "\u5177\u5907\u5b89\u5168\u8fd0\u8425\u6216\u98ce\u63a7\u7ecf\u9a8c\u3002",
+        "highLight": "\u5b89\u5168\u7b56\u7565",
+        "firstPostTime": 1782057600000,
+        "refreshTime": 1782144000000
+      },
+      {
+        "jobUnionId": "4158839536",
+        "name": "\u7b97\u6cd5\u5de5\u7a0b\u5e08-\u5b89\u5168\u98ce\u63a7",
+        "jobFamily": "\u7814\u53d1\u7c7b",
+        "cityList": [
+          {"name": "\u4e0a\u6d77\u5e02"}
+        ],
+        "jobDuty": "\u8d1f\u8d23 AIGC \u98ce\u63a7\u7b97\u6cd5\u5efa\u8bbe\u3002",
+        "jobRequirement": "\u719f\u6089 deep learning \u548c security \u98ce\u63a7\u3002",
+        "firstPostTime": 1781971200000
+      }
+    ],
+    "page": {
+      "pageNo": 1,
+      "pageSize": 50,
+      "totalPage": 1,
+      "totalCount": 2
+    }
+  }
+}

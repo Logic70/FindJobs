@@ -1,0 +1,34 @@
+{
+  "data": {
+    "list": [
+      {
+        "id": "B3001",
+        "title": "AI Security Engineer",
+        "description": "Large language model security assessment and penetration testing, AIGC content safety review",
+        "location": "Beijing",
+        "salary": "30k-50k·15薪",
+        "publish_time": "2026-06-28T00:00:00+08:00",
+        "url": "https://jobs.bytedance.com/position/B3001"
+      },
+      {
+        "id": "B3002",
+        "title": "Backend Engineer",
+        "description": "负责后台服务架构设计与核心功能开发",
+        "location": "Shanghai",
+        "salary": "",
+        "publish_time": "2026-06-27T00:00:00+08:00",
+        "url": "https://jobs.bytedance.com/position/B3002"
+      },
+      {
+        "id": "B3003",
+        "title": "算法工程师 - 搜索推荐",
+        "description": "负责推荐算法优化，包括召回、粗排、精排序等核心模块",
+        "location": "Beijing",
+        "salary": "40k-60k",
+        "publish_time": "2026-06-26T00:00:00+08:00",
+        "url": "https://jobs.bytedance.com/position/B3003"
+      }
+    ],
+    "total": 3
+  }
+}

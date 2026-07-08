@@ -1,0 +1,27 @@
+{
+  "code": 200,
+  "data": {
+    "list": [
+      {
+        "id": 100001,
+        "name": "安全工程师",
+        "firstPostTypeName": "技术类",
+        "requirement": "负责公司安全体系建设，包括漏洞挖掘、渗透测试、安全审计等",
+        "description": "1. 负责公司产品和业务的安全测试；2. 跟踪安全动态，进行安全漏洞分析；3. 参与安全架构审计",
+        "workPlaceNameList": ["杭州"],
+        "updateTime": 1780573420000,
+        "productName": "网易安全部"
+      },
+      {
+        "id": 100002,
+        "name": "AI安全研发工程师",
+        "firstPostTypeName": "技术类",
+        "requirement": "负责AI安全方向的技术研究与产品研发",
+        "description": "1. 负责大模型安全评估与加固；2. 研发AI安全检测工具；3. 研究AIGC内容安全技术",
+        "workPlaceNameList": ["杭州", "北京"],
+        "updateTime": 1780659820000,
+        "productName": "网易人工智能事业部"
+      }
+    ]
+  }
+}
