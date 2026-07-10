@@ -1,20 +1,95 @@
-"""Job title/description classifier for AI and cybersecurity roles."""
+"""Job title/description classifier for AI and cybersecurity roles.
+
+Provides two entry points:
+
+* :func:`classify_job` -- legacy function returning ``list[str]`` of tags.
+* :func:`classify_job_detailed` -- new function returning a frozen
+  :class:`DetailedClassification` with tags, relevance status, machine-readable
+  reason codes, and the classification version.
+
+Version
+-------
+``CLASSIFICATION_VERSION = "2.1.0"`` -- increment whenever the contract
+(reason codes, status semantics, or pattern logic) changes in a way that
+stale persisted data would not reflect.
+"""
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
+
+# ---------------------------------------------------------------------------
+# Version & result type
+# ---------------------------------------------------------------------------
+
+CLASSIFICATION_VERSION = "2.1.0"
+
+
+@dataclass(frozen=True)
+class DetailedClassification:
+    """Frozen result of a detailed job classification.
+
+    Attributes:
+        tags:             Tuple of domain tags (e.g. ``("AI", "Security")``).
+        relevance_status: One of ``"target"``, ``"review"``, or ``"excluded"``.
+        reasons:          Tuple of stable machine-readable reason codes.
+        version:          The ``CLASSIFICATION_VERSION`` used.
+    """
+
+    tags: tuple[str, ...] = ()
+    relevance_status: str = "excluded"
+    reasons: tuple[str, ...] = ()
+    version: str = CLASSIFICATION_VERSION
+
+
+# ---------------------------------------------------------------------------
+# Machine-readable reason codes  (stable — never rename or re-purpose)
+# ---------------------------------------------------------------------------
+
+# Excluded reasons
+REASON_ALGORITHM = "algorithm_in_title_or_type"
+REASON_PRODUCT = "product_manager_or_operations"
+REASON_BUSINESS_OPS = "business_strategy_risk_operations"
+REASON_ANALYSIS = "data_business_operations_analysis"
+REASON_PLANNING = "planning_creative_planning"
+REASON_SALES = "sales_marketing_customer_success"
+REASON_PROJECT = "project_management"
+REASON_INTERN = "generic_internship"
+REASON_QA_DESIGN_LEGAL = "qa_audit_content_design_legal_admin"
+REASON_NO_SIGNALS = "no_target_signals"
+
+# Target reasons
+REASON_AI_SURFACE = "ai_surface_signals"
+REASON_SECURITY_SURFACE = "security_surface_signals"
+REASON_AI_SECURITY_SURFACE = "ai_and_security_surface_signals"
+
+# Review reasons
+REASON_REVIEW_AI = "engineering_title_with_ai_responsibilities"
+REASON_REVIEW_SECURITY = "engineering_title_with_security_responsibilities"
+REASON_REVIEW_AI_SECURITY = "engineering_title_with_ai_and_security_responsibilities"
+REASON_FUNCTIONAL_SECURITY_REVIEW = "functional_security_role_requires_review"
+REASON_AMBIGUOUS_AI_REVIEW = "non_engineering_ai_role_requires_review"
+REASON_NON_TARGET_INFRASTRUCTURE = "generic_dba_or_vehicle_architecture"
+REASON_ALGORITHM_ADJACENT_AI_REVIEW = "algorithm_adjacent_ai_role_requires_review"
+
+
+# ---------------------------------------------------------------------------
+# Surface-signal pattern groups (kept from Phase 1 with minimal additions)
+# ---------------------------------------------------------------------------
 
 _AI_SURFACE_SIGNALS: list[re.Pattern] = [
     re.compile(r"(^|[^a-z0-9])ai(?=$|[^a-z0-9])", re.IGNORECASE),
-    re.compile(r"\bagi\b", re.IGNORECASE),
-    re.compile(r"\bllm\b", re.IGNORECASE),
-    re.compile(r"\baigc\b", re.IGNORECASE),
-    re.compile(r"\bmlops\b", re.IGNORECASE),
-    re.compile(r"\bagent\b", re.IGNORECASE),
+    re.compile(r"(?<![a-z0-9])agi(?![a-z0-9])", re.IGNORECASE),
+    re.compile(r"(?<![a-z0-9])llm(?![a-z0-9])", re.IGNORECASE),
+    re.compile(r"(?<![a-z0-9])aigc(?![a-z0-9])", re.IGNORECASE),
+    re.compile(r"(?<![a-z0-9])mlops(?![a-z0-9])", re.IGNORECASE),
+    re.compile(r"(^|[^a-z0-9])agent(?=$|[^a-z0-9])", re.IGNORECASE),
+    re.compile(r"\bagentic\b", re.IGNORECASE),
     re.compile(r"\bmachine\s+learning\b", re.IGNORECASE),
     re.compile(r"\bdeep\s+learning\b", re.IGNORECASE),
-    re.compile(r"\bnlp\b", re.IGNORECASE),
+    re.compile(r"(?<![a-z0-9])nlp(?![a-z0-9])", re.IGNORECASE),
     re.compile(r"\bcomputer\s+vision\b", re.IGNORECASE),
     re.compile(r"\bchatgpt\b", re.IGNORECASE),
     re.compile(r"\bgpt(?:\b|-)", re.IGNORECASE),
@@ -36,9 +111,9 @@ _AI_SURFACE_SIGNALS: list[re.Pattern] = [
 ]
 
 _AI_DESCRIPTION_SIGNALS: list[re.Pattern] = [
-    re.compile(r"\bllm\b", re.IGNORECASE),
-    re.compile(r"\baigc\b", re.IGNORECASE),
-    re.compile(r"\bmlops\b", re.IGNORECASE),
+    re.compile(r"(?<![a-z0-9])llm(?![a-z0-9])", re.IGNORECASE),
+    re.compile(r"(?<![a-z0-9])aigc(?![a-z0-9])", re.IGNORECASE),
+    re.compile(r"(?<![a-z0-9])mlops(?![a-z0-9])", re.IGNORECASE),
     re.compile(r"\bmodel\s+inference\b", re.IGNORECASE),
     re.compile(r"\bai\s+(application|platform|agent|assistant|security)\b", re.IGNORECASE),
     re.compile(r"\bagent\s+(workflow|platform|security|application|engine)\b", re.IGNORECASE),
@@ -82,6 +157,8 @@ _STRONG_SECURITY_SURFACE_SIGNALS: list[re.Pattern] = [
     re.compile(r"安全[-—_]"),
     re.compile(r"安全(研发|开发|架构|渗透|攻防|响应)"),
     re.compile(r"(研发|开发|架构|渗透|攻防|响应|风控)安全"),
+    re.compile(r"(安全|风控)(AI|大模型|智能体|模型)", re.IGNORECASE),
+    re.compile(r"(AI|Agent|大模型|智能体)\s*(安全|红队|攻防|漏洞|威胁)", re.IGNORECASE),
 ]
 
 # Weak: ambiguous — may refer to physical safety. Requires exclusion checks.
@@ -135,6 +212,9 @@ _CYBER_SECURITY_OVERRIDE_SIGNALS: list[re.Pattern] = [
 ]
 
 _FUNCTIONAL_RISK_ROLE_EXCLUSIONS: list[re.Pattern] = [
+    re.compile(r"(合规风控|风控合规)"),
+    re.compile(r"(信贷风控岗|项目风控(?:岗|专员|经理|负责人|$))"),
+    re.compile(r"(采购|供应链).*(风控|风险).*(专员|经理|负责人|专家|岗)?"),
     re.compile(
         "(\u98ce\u63a7|\u98ce\u9669|\u53cd\u6b3a\u8bc8|\u53cd\u4f5c\u5f0a).*(\u7b56\u7565|\u7ecf\u8425|\u6307\u6807|\u5546\u4e1a|\u4e1a\u52a1|\u6570\u636e|\u4ea7\u54c1|\u8fd0\u8425|\u89c4\u5219|\u7528\u6237\u5206\u5c42|\u9884\u7b97|\u589e\u957f|\u7ba1\u7406|\u5185\u63a7|\u5ba1\u8ba1|\u5408\u89c4|\u4f9b\u5e94\u94fe|\u8d44\u4ea7|EHS|\u8d22\u52a1|\u6cd5\u5f8b)"
     ),
@@ -193,6 +273,7 @@ _NON_CYBER_ROLE_CLUES: list[re.Pattern] = [
     # Manufacturing, production, processing
     re.compile(r"(生产|制造|工厂|车间|流水线|设备|机修|电工|焊工|钳工|模具|冲压|注塑)"),
     re.compile(r"(质检|品控|检验|检测|QA|QC|品管|品控|化验)"),
+    re.compile(r"(数据中心电气|电气运维|暖通运维|机房电气)"),
     re.compile(r"(PC加工|加工[主管]?|包装|灌装|组装|车工|铣工)"),
     # Construction / civil engineering (physical, not cyber)
     re.compile(r"(工程项目|土木|建筑|施工|装修|监理|造价|预算|给排水|暖通|结构|施工员)"),
@@ -228,7 +309,7 @@ _HARD_NON_TARGET_SURFACE_ROLES: list[re.Pattern] = [
     re.compile(
         r"(销售|Sale|Sales|商务|渠道|客户经理|客户成功|大客户|业务拓展|商业拓展|\bBD\b|"
         r"Business\s*Development|Ecosystem|生态|公共事务|政府关系|市场|Marketing|"
-        r"Commercialization|Partner\s*Operations)",
+        r"Commercialization|Partner\s*Operations|Partnerships?|Growth\s*Manager)",
         re.IGNORECASE,
     ),
     re.compile(r"(供应商管理|供应商|资源管理|资源采购|采购)", re.IGNORECASE),
@@ -252,10 +333,19 @@ _ALWAYS_EXCLUDED_SURFACE_ROLES: list[re.Pattern] = [
     re.compile(r"(设计|设计师|\bUI\b|\bUX\b|视觉|交互设计)", re.IGNORECASE),
     re.compile(r"(社区运营|开发者社区|开发者运营|社区经理)", re.IGNORECASE),
     re.compile(r"(项目经理|交付项目|项目/产品经理|项目管理|PMO)", re.IGNORECASE),
-    re.compile(r"(招聘|猎头|客服|客户服务|技术支持|Finance|Procurement)", re.IGNORECASE),
+    re.compile(r"(招聘|猎头|人才发展|客服|客户服务|技术支持|售前|HRG|Finance|Procurement)", re.IGNORECASE),
+    re.compile(r"Customer\s+Experience\s+Operations?", re.IGNORECASE),
     re.compile(r"(教研员|教研|教师|讲师|医学研究员)", re.IGNORECASE),
     re.compile(r"(专利|知识产权|律师|法务)", re.IGNORECASE),
-    re.compile(r"实习"),
+    re.compile(r"(实习|\bIntern(?:ship)?\b)", re.IGNORECASE),
+    # Phase 2A strict surface exclusions (requirement 5)
+    re.compile(r"(产品经理|产品.*运营|产品负责人|产品专家|产品.*规划|产品.*战略|策略产品|产品架构方向)"),
+    re.compile(r"(策略运营|风控运营|业务运营|经营分析|经济安全.*运营|系统策划.*安全)"),
+    re.compile(r"(数据分析师|数据分析|数据运营|经营分析师|业务分析师|商业分析师)"),
+    re.compile(r"(产品策划|系统策划|技术策划|玩法策划|载具策划|创意策划|内容策划|活动策划|品牌策划|AI策划|主策|策划师|策划类|策划$)"),
+    re.compile(r"(战略合作|组织治理|法律方向)"),
+    re.compile(r"(\bDBA\b|数据库工程师|车机技术架构师)", re.IGNORECASE),
+    re.compile(r"AI\s*Builder.*策略方向", re.IGNORECASE),
 ]
 
 _COMMERCIAL_AI_EXCLUSIONS: list[re.Pattern] = [
@@ -265,6 +355,11 @@ _COMMERCIAL_AI_EXCLUSIONS: list[re.Pattern] = [
 
 _NON_ENGINEERING_AI_EXCLUSIONS: list[re.Pattern] = [
     re.compile(r"(产品经理|产品负责人|产品专家|产品规划|产品运营|产品实习|运营实习|业务助理|内容开发|内容运营|课程|讲师|教师)"),
+    re.compile(
+        r"\b(Product\s+(?:Manager|Management|Owner)|Talent\s+Acquisition|"
+        r"Recruiter|Recruiting|Operations\s+Lead)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"(数据分析师|QA|测试|质量管理|审核)"),
     re.compile(r"(consultant|consulting|咨询|调研|顾问)", re.IGNORECASE),
 ]
@@ -368,12 +463,309 @@ def _has_description_ai(description: str) -> bool:
     return _matches_any(description, _AI_DESCRIPTION_SIGNALS)
 
 
-def classify_job(title: str, description: str, job_type: str = "") -> list[str]:
-    """Classify a job into `AI`, `Security`, and `AI Security` tags.
+# ---------------------------------------------------------------------------
+# Hard-exclusion surface patterns  (Phase 2A — requirement 5)
+# ---------------------------------------------------------------------------
+# These patterns are checked against the SURFACE (title + job_type) only, in
+# the order listed.  The first match wins.  All categories listed in
+# requirement 5 are represented: algorithm, product, business/risk ops,
+# analysis, planning, sales, project, intern, QA/design/legal/admin.
+# Category "qa_design_legal_admin" may be overridden by explicit security
+# engineering surface signals (requirement 8 target scope).
 
-    Titles and source job types are treated as the strongest signal.  Combined
-    descriptions often include requirements such as "AI tools preferred" or
-    "network security basics"; those are not enough to classify the role.
+_HARD_EXCLUSION_REASONS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"算法"), REASON_ALGORITHM),
+    (re.compile(r"(\bDBA\b|数据库工程师|车机技术架构师)", re.IGNORECASE), REASON_NON_TARGET_INFRASTRUCTURE),
+    (re.compile(
+        r"(产品经理|产品负责人|产品专家|产品.*规划|产品.*运营|产品.*战略|"
+        r"策略产品|产品架构方向|\bProduct\s+(?:Manager|Management|Owner)\b|"
+        r"\bOperations\s+Lead\b)",
+        re.IGNORECASE,
+    ), REASON_PRODUCT),
+    (re.compile(r"(策略运营|风控运营|业务运营|经营分析|经济风控|"
+                r"经济安全.*运营|系统策划.*安全|风险策略运营|业务风控|"
+                r"战略合作|组织治理|合规风控|风控合规)"), REASON_BUSINESS_OPS),
+    (re.compile(r"(数据分析师|数据分析|数据运营|数据标注|"
+                r"经营分析师|业务分析师|商业分析师|BI分析师)"), REASON_ANALYSIS),
+    (re.compile(r"(产品策划|系统策划|创意策划|内容策划|活动策划|品牌策划|AI策划|主策|策划师|策划类|策划$)"), REASON_PLANNING),
+    (re.compile(r"(销售|Sale|Sales|商务|商务拓展|渠道|客户经理|客户成功|"
+                r"大客户|业务拓展|商业拓展|\bBD\b|市场|Marketing|市场经理|"
+                r"营销|售前)", re.IGNORECASE), REASON_SALES),
+    (re.compile(r"(项目经理|项目管理|PMO|交付经理|交付项目)"), REASON_PROJECT),
+    (re.compile(r"实习"), REASON_INTERN),
+    # QA / audit / content / design / legal / admin  (overrideable)
+    (re.compile(r"(QA|测试|审核|审计|内容运营|内容编辑|编辑|文案|"
+                r"设计|设计师|\bUI\b|\bUX\b|视觉|交互设计|法务|律师|"
+                r"法律方向|行政|职能|HR|招聘|Talent\s+Acquisition|Recruiter|Recruiting|"
+                r"客服|技术支持)", re.IGNORECASE), REASON_QA_DESIGN_LEGAL),
+]
+
+# Security-engineering override patterns  (allow penetration testing & similar
+# security roles that happen to contain a QA-like keyword to remain target).
+_SECURITY_ENGINEERING_OVERRIDE: list[re.Pattern] = [
+    re.compile(r"(渗透|漏洞(?!\s*[a-z])|攻防|红队|蓝队|WAF|零信任|"
+               r"AppSec|SDL|DevSecOps|安全渗透|安全测试|安全研发|"
+               r"安全开发|安全架构|安全响应)"),
+]
+
+# ---------------------------------------------------------------------------
+# Technical surface patterns  (requirement 6 — "engineering-looking" titles)
+# ---------------------------------------------------------------------------
+# These match general engineering / development / architecture / system
+# wording in the title or job_type.  Used in Step 3 of
+# :func:`classify_job_detailed` to decide whether a job whose tags come
+# solely from *description* signals should be promoted to ``review`` status.
+# A plain product/operations/strategy title does NOT match here, so it
+# cannot be upgraded by description evidence alone.
+
+_TECHNICAL_SURFACE_PATTERNS: list[re.Pattern] = [
+    re.compile(r"(工程师|工程(?!.*设计)|研发|开发|架构师|架构|"
+               r"平台|后端|系统|内核|中间件|基础设施|infra|"
+               r"后台|全栈|算法(?!.*产品|.*运营|.*分析))"),
+    re.compile(r"\b(engineer|developer|architect|platform|backend|system|"
+               r"infra|infrastructure|full.stack|backend|detection|response|"
+               r"vulnerability|penetration|offensive|defensive|appsec|sdl|"
+               r"devsecops)\b", re.IGNORECASE),
+]
+
+_EXPLICIT_ENGINEERING_SURFACE_PATTERNS: list[re.Pattern] = [
+    re.compile(
+        r"(工程师|研发|开发|架构师|架构|后端|前端|客户端|服务端|全栈|"
+        r"技术负责人|技术专家|测试开发|检测|响应|渗透|漏洞|攻防)"
+    ),
+    re.compile(
+        r"\b(engineer|developer|architect|backend|frontend|full.stack|FDE|"
+        r"detection|response|vulnerability|penetration|offensive|defensive)\b",
+        re.IGNORECASE,
+    ),
+]
+
+_NON_ENGINEERING_PRODUCT_SURFACE = re.compile(
+    r"(产品(?:经理|负责人|专家|运营|策划|战略|规划|架构|方案|解决方案|美学|交付)|"
+    r"(?:体验|搜索|平台|应用|风控|CRM)产品(?:\b|[-（(])|"
+    r"AI产品(?:\b|[-（(])|产品(?:\s*$|[-（(])|"
+    r"\bproduct\s+(?:manager|management|owner|lead|strategy|operations?|solutions?)\b)",
+    re.IGNORECASE,
+)
+
+_HIGH_CONFIDENCE_AI_SURFACE_PATTERNS: list[re.Pattern] = [
+    re.compile(r"\b(MLOps|LLMOps|Agentic\s+Infra)\b", re.IGNORECASE),
+    re.compile(r"\b(?:AI|Agent)\s+Builder\b", re.IGNORECASE),
+    re.compile(r"(模型推理|推理部署|推理优化|推理系统|推理框架|模型服务)"),
+    re.compile(r"(训练.{0,6}(?:框架|平台|系统)|框架训练|平台训练|高性能计算|异构计算)"),
+    re.compile(r"(AI|大模型|智能体)(平台|基础设施|Infra|算力|安全)", re.IGNORECASE),
+    re.compile(r"(AI安全|大模型安全|模型安全|智能体安全).*(研究|Research)", re.IGNORECASE),
+    re.compile(r"\bAI\s+Security\s+Research", re.IGNORECASE),
+    re.compile(r"(AI|Agent|大模型|智能体)\s*(安全|红队|攻防|漏洞|威胁)", re.IGNORECASE),
+]
+
+_ALGORITHM_ADJACENT_AI_SURFACE = re.compile(
+    r"(建模|模型架构|模型研发|模型训练|大模型训练|预训练|后训练|微调|对齐|强化学习|机器学习|深度学习|量化投研|投研|多模态.*(?:研究员|架构))"
+)
+
+
+def _has_technical_surface(surface: str) -> bool:
+    """Return True when the surface (title + job_type) reads as engineering."""
+    return _matches_any(surface, _TECHNICAL_SURFACE_PATTERNS)
+
+
+def _has_explicit_engineering_surface(surface: str) -> bool:
+    return _matches_any(surface, _EXPLICIT_ENGINEERING_SURFACE_PATTERNS)
+
+
+def _is_non_engineering_product_surface(surface: str) -> bool:
+    return bool(_NON_ENGINEERING_PRODUCT_SURFACE.search(surface)) and not (
+        _has_explicit_engineering_surface(surface)
+    )
+
+
+def _has_high_confidence_ai_surface(surface: str) -> bool:
+    return _matches_any(surface, _HIGH_CONFIDENCE_AI_SURFACE_PATTERNS)
+
+
+_FUNCTIONAL_SECURITY_REVIEW_SURFACES: list[re.Pattern] = [
+    re.compile(r"(运营|治理|合规|审计|策略)"),
+    re.compile(r"(?:^|[^A-Za-z])BP(?:$|[^A-Za-z])", re.IGNORECASE),
+    re.compile(r"\b(operations?|governance|compliance|audit|strategy|GRC)\b", re.IGNORECASE),
+]
+
+
+def _is_functional_security_review_surface(surface: str) -> bool:
+    """Return whether a security title is functional rather than engineering."""
+    return _matches_any(surface, _FUNCTIONAL_SECURITY_REVIEW_SURFACES)
+
+
+_FUNCTIONAL_ROLE_ENGINEERING_SURFACES: list[re.Pattern] = [
+    re.compile(r"(工程师|研发|开发|架构师|架构|后端|前端|客户端|服务端|全栈|测试开发)"),
+    re.compile(r"\b(engineer|developer|architect|backend|frontend|full.stack|FDE)\b", re.IGNORECASE),
+]
+
+
+def _has_functional_role_engineering_surface(surface: str) -> bool:
+    return _matches_any(surface, _FUNCTIONAL_ROLE_ENGINEERING_SURFACES)
+
+
+def _get_exclusion_reason(
+    surface: str, description: str = "", title: str = ""
+) -> str:
+    """Return a reason code explaining why *classify_job* returned empty tags.
+
+    This is purely diagnostic — the exclusion decision itself is made by
+    :func:`classify_job`.  The first pattern match wins (priority order).
+    """
+    if _is_non_engineering_product_surface(title or surface):
+        return REASON_PRODUCT
+    for pattern, reason in _HARD_EXCLUSION_REASONS:
+        if pattern.search(surface):
+            if reason == REASON_QA_DESIGN_LEGAL:
+                # Check for security engineering override
+                if _matches_any(surface, _SECURITY_ENGINEERING_OVERRIDE):
+                    continue  # override — skip to next pattern
+            return reason
+    return REASON_NO_SIGNALS
+
+
+def _determine_target_reasons(surface: str) -> tuple[str, ...]:
+    """Build reason codes for a ``target`` job based on surface signals."""
+    reasons: list[str] = []
+    has_ai = _matches_any(surface, _AI_SURFACE_SIGNALS)
+    has_sec = _matches_any(
+        surface, [*_STRONG_SECURITY_SURFACE_SIGNALS, *_WEAK_SECURITY_SURFACE_SIGNALS]
+    )
+    if has_ai:
+        reasons.append(REASON_AI_SURFACE)
+    if has_sec:
+        reasons.append(REASON_SECURITY_SURFACE)
+    if has_ai and has_sec:
+        reasons.append(REASON_AI_SECURITY_SURFACE)
+    return tuple(reasons)
+
+
+def _determine_review_reasons(tags: tuple[str, ...]) -> tuple[str, ...]:
+    """Build reason codes for a ``review`` job based on its tags."""
+    reasons: list[str] = []
+    if "AI" in tags:
+        reasons.append(REASON_REVIEW_AI)
+    if "Security" in tags:
+        reasons.append(REASON_REVIEW_SECURITY)
+    if "AI" in tags and "Security" in tags:
+        reasons.append(REASON_REVIEW_AI_SECURITY)
+    return tuple(reasons)
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def classify_job_detailed(
+    title: str, description: str = "", job_type: str = ""
+) -> DetailedClassification:
+    """Classify a job and return a frozen :class:`DetailedClassification`.
+
+    The logic always defers to :func:`classify_job` for the tag decision so
+    the two APIs remain consistent.  This function then layers on relevance
+    status and machine-readable reason codes:
+
+    * **tags non-empty + surface has AI/security signals** → ``target``
+    * **tags non-empty + no surface signals + engineering title +
+      description evidence** → ``review``
+    * **tags empty** → ``excluded`` (with a reason code)
+    """
+    title = title or ""
+    description = description or ""
+    job_type = job_type or ""
+    surface = f"{title} {job_type}".strip() if (title or job_type) else ""
+
+    # Always defer classify_job for tag correctness.
+    tags = classify_job(title, description, job_type)
+
+    if not tags:
+        return DetailedClassification(
+            tags=(),
+            relevance_status="excluded",
+            reasons=(_get_exclusion_reason(surface, description, title),),
+        )
+
+    if (
+        "Security" in tags
+        and _is_functional_security_review_surface(surface)
+        and not _has_functional_role_engineering_surface(surface)
+    ):
+        return DetailedClassification(
+            tags=tuple(tags),
+            relevance_status="review",
+            reasons=(REASON_FUNCTIONAL_SECURITY_REVIEW,),
+        )
+
+    if (
+        "AI" in tags
+        and _matches_any(surface, _AI_SURFACE_SIGNALS)
+        and not _has_explicit_engineering_surface(surface)
+        and not _has_high_confidence_ai_surface(surface)
+    ):
+        return DetailedClassification(
+            tags=tuple(tags),
+            relevance_status="review",
+            reasons=(REASON_AMBIGUOUS_AI_REVIEW,),
+        )
+
+    if (
+        "AI" in tags
+        and _matches_any(surface, _AI_SURFACE_SIGNALS)
+        and _ALGORITHM_ADJACENT_AI_SURFACE.search(surface)
+        and not _has_high_confidence_ai_surface(surface)
+    ):
+        return DetailedClassification(
+            tags=tuple(tags),
+            relevance_status="review",
+            reasons=(REASON_ALGORITHM_ADJACENT_AI_REVIEW,),
+        )
+
+    # Tags exist — distinguish target (surface signals) from review
+    # (engineering title + description evidence).
+    surface_has_signals = _matches_any(
+        surface,
+        [*_AI_SURFACE_SIGNALS, *_STRONG_SECURITY_SURFACE_SIGNALS, *_WEAK_SECURITY_SURFACE_SIGNALS],
+    )
+    if surface_has_signals:
+        return DetailedClassification(
+            tags=tuple(tags),
+            relevance_status="target",
+            reasons=_determine_target_reasons(surface),
+        )
+
+    # Engineering-looking title with description evidence → review.
+    primary_desc = _primary_description(description)
+    has_desc_ai = _has_description_ai(primary_desc)
+    has_desc_sec = _matches_any(
+        primary_desc, [*_STRONG_SECURITY_DESCRIPTION_SIGNALS, *_WEAK_SECURITY_DESCRIPTION_SIGNALS]
+    )
+    if _has_technical_surface(surface) and (has_desc_ai or has_desc_sec):
+        return DetailedClassification(
+            tags=tuple(tags),
+            relevance_status="review",
+            reasons=_determine_review_reasons(tuple(tags)),
+        )
+
+    # Fallback (should not normally be reached): treat as review.
+    return DetailedClassification(
+        tags=tuple(tags),
+        relevance_status="review",
+        reasons=_determine_review_reasons(tuple(tags)),
+    )
+
+
+def classify_job(title: str, description: str, job_type: str = "") -> list[str]:
+    """Classify a job into ``AI``, ``Security``, and ``AI Security`` tags.
+
+    This is the legacy API — it returns tags only, not the full
+    :class:`DetailedClassification`.  For target and review jobs the returned
+    tags are identical; for excluded jobs the list is empty.
+
+    .. seealso::
+        :func:`classify_job_detailed` for the full result with relevance
+        status, machine-readable reasons, and classification version.
     """
     title = title or ""
     description = description or ""
@@ -406,6 +798,15 @@ def classify_job(title: str, description: str, job_type: str = "") -> list[str]:
         return []
     if always_excluded_surface_role:
         return []
+    if "职能" in job_type and not _has_explicit_engineering_surface(title):
+        return []
+    if _is_non_engineering_product_surface(title):
+        return []
+    surface_functional_risk_role = _is_functional_risk_role(
+        surface
+    ) and not _has_functional_role_engineering_surface(surface)
+    if surface_functional_risk_role:
+        return []
     functional_risk_role = _is_functional_risk_role(
         f"{surface} {primary_description}"
     ) and not _has_security_engineering_override(f"{surface} {primary_description}")
@@ -431,7 +832,10 @@ def classify_job(title: str, description: str, job_type: str = "") -> list[str]:
     )
     weak_surface_security = (
         not non_cyber_surface
-        and not non_cyber_description
+        and (
+            not non_cyber_description
+            or _has_security_engineering_override(surface)
+        )
         and _matches_any(surface, _WEAK_SECURITY_SURFACE_SIGNALS)
     )
     strong_description_security = (
@@ -452,6 +856,11 @@ def classify_job(title: str, description: str, job_type: str = "") -> list[str]:
         or strong_description_security
         or weak_description_security
     )
+
+    if surface_ai and not security_surface:
+        has_security = False
+    if security_surface and not surface_ai:
+        has_ai = False
 
     tags: list[str] = []
     if has_ai:

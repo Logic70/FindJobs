@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from findjobs.classify import CLASSIFICATION_VERSION, classify_job_detailed
 from findjobs.job_types import format_job_type
 from findjobs.locations import format_locations
 from findjobs.models import CollectRun, Job, JobObservation, _utcnow
@@ -28,6 +29,7 @@ class CollectedJob:
 
     Attributes correspond to the ``jobs`` table columns.
     ``matched_tags`` is stored as a JSON-serialized list in the DB.
+    ``classification_reasons`` is stored as a JSON-serialized list.
     """
 
     external_id: str = ""
@@ -44,6 +46,9 @@ class CollectedJob:
     job_type: str = ""
     published_at: Optional[datetime] = None
     matched_tags: list[str] = field(default_factory=list)
+    relevance_status: str = "target"
+    classification_version: str = ""
+    classification_reasons: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +172,11 @@ def upsert_job(
         existing.last_seen_at = now
         existing.status = "active"
         existing.missing_run_count = 0
-        existing.relevance_status = "target"
+        existing.relevance_status = job.relevance_status
+        existing.classification_version = job.classification_version
+        existing.classification_reasons = json.dumps(
+            job.classification_reasons, ensure_ascii=False
+        )
         existing.title = job.title
         existing.url = job.url or existing.url
         existing.description = job.description
@@ -203,7 +212,12 @@ def upsert_job(
             first_seen_at=now,
             last_seen_at=now,
             status="active",
+            relevance_status=job.relevance_status,
             matched_tags=json.dumps(job.matched_tags, ensure_ascii=False),
+            classification_version=job.classification_version,
+            classification_reasons=json.dumps(
+                job.classification_reasons, ensure_ascii=False
+            ),
         )
         session.add(db_job)
 
@@ -279,6 +293,17 @@ def collect_jobs(
     Creates a :class:`JobObservation` for each job via :func:`upsert_job`.
     """
     normalized_jobs = [normalize_collected_job(job) for job in collected_jobs]
+
+    # Recompute detailed classification centrally on canonical fields so
+    # adapters cannot bypass the contract (requirement 10).
+    for job in normalized_jobs:
+        detailed = classify_job_detailed(job.title, job.description, job.job_type)
+        job.matched_tags = list(detailed.tags)
+        job.relevance_status = detailed.relevance_status
+        job.classification_version = detailed.version
+        job.classification_reasons = list(detailed.reasons)
+
+    # Excluded jobs are filtered out; review jobs persist alongside target.
     unique_collected_jobs = filter_domain_relevant_jobs(
         _deduplicate_collected_jobs(normalized_jobs)
     )

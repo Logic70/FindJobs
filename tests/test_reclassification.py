@@ -15,6 +15,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from findjobs.classify import CLASSIFICATION_VERSION
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -77,6 +79,8 @@ def _insert_job(
     last_seen_at: datetime | None = None,
     source_id: int = 1,
     company_id: int = 1,
+    classification_version: str = "",
+    classification_reasons: str = "[]",
 ) -> int:
     """Insert a minimal job row and return its id."""
     from findjobs.models import Job
@@ -92,6 +96,8 @@ def _insert_job(
         description=description,
         relevance_status=relevance_status,
         matched_tags=tags,
+        classification_version=classification_version,
+        classification_reasons=classification_reasons,
         location=location,
         job_type=job_type,
         status=status,
@@ -250,6 +256,10 @@ class TestPreviewNoop:
                 relevance_status="target",
                 location="北京",
                 job_type="技术",
+                classification_version=CLASSIFICATION_VERSION,
+                classification_reasons=json.dumps(
+                    ["ai_surface_signals"], ensure_ascii=False
+                ),
             )
             session.commit()
 
@@ -258,6 +268,7 @@ class TestPreviewNoop:
             assert result.updated == 0
             assert result.excluded == 0
             assert result.restored == 0
+            assert result.moved_to_review == 0
             assert result.normalized == 0
             assert result.deleted == 0
 

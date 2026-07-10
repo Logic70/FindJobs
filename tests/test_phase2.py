@@ -230,11 +230,11 @@ class TestClassifyJob:
         assert "AI" in tags
 
     def test_ai_aigc_signal(self):
-        """Description with 'AIGC' should receive AI tag."""
+        """AIGC in a description must not rescue a product-manager title."""
         from findjobs.classify import classify_job
 
         tags = classify_job("Product Manager", "AIGC content generation platform")
-        assert "AI" in tags
+        assert tags == []
 
     def test_ai_product_manager_signal(self):
         """AI-only product manager roles are outside AI engineering scope."""
@@ -1489,7 +1489,7 @@ class TestCollectionPersistence:
 
         job_a = CollectedJob(
             external_id="same-id",
-            title="First Title",
+            title="Security Engineer",
             url="https://example.com/a",
             location="Beijing",
             matched_tags=["Security"],
@@ -1500,7 +1500,7 @@ class TestCollectionPersistence:
 
         job_b = CollectedJob(
             external_id="same-id",  # matches job_a
-            title="Updated Title",
+            title="Security Engineer - Updated",
             url="https://example.com/b",  # different URL
             location="Shanghai",  # different location
             matched_tags=["Security"],
@@ -1515,7 +1515,7 @@ class TestCollectionPersistence:
             .all()
         )
         assert len(jobs) == 1  # not duplicated
-        assert jobs[0].title == "Updated Title"
+        assert jobs[0].title == "Security Engineer - Updated"
 
 
 # ---------------------------------------------------------------------------

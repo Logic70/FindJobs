@@ -73,7 +73,7 @@ def _seed_source_with_job(
             source_id=source.id,
             company_id=company.id,
             external_id=external_id,
-            title=f"Job {external_id}",
+            title="Security Engineer",
             status=status,
             missing_run_count=missing_run_count,
             relevance_status=relevance_status,
@@ -153,7 +153,7 @@ class _SingleJobAdapter:
         return [
             CollectedJob(
                 external_id=self._external_id,
-                title=f"Job {self._external_id}",
+                title="Security Engineer",
                 location="Shanghai",
                 matched_tags=["AI"],
             )
@@ -453,20 +453,20 @@ class TestLiveCollectLifecycleTransitions:
                 return [
                     CollectedJob(
                         external_id="ext-1",
-                        title="Job ext-1",
+                        title="Security Engineer",
                         location="Shanghai",
                         matched_tags=["AI"],
                     ),
                     CollectedJob(
                         external_id="companion",
-                        title="Job companion",
+                        title="AI Engineer",
                         location="Shanghai",
                         matched_tags=["AI"],
                     ),
                 ] if self._call == 1 else [
                     CollectedJob(
                         external_id="companion",
-                        title="Job companion",
+                        title="AI Engineer",
                         location="Shanghai",
                         matched_tags=["AI"],
                     ),
@@ -530,13 +530,13 @@ class TestLiveCollectLifecycleTransitions:
                     return [
                         CollectedJob(
                             external_id="ext-1",
-                            title="Job ext-1",
+                            title="Security Engineer",
                             location="Shanghai",
                             matched_tags=["AI"],
                         ),
                         CollectedJob(
                             external_id="companion-re",
-                            title="Job companion-re",
+                            title="AI Engineer",
                             location="Shanghai",
                             matched_tags=["AI"],
                         ),
@@ -546,7 +546,7 @@ class TestLiveCollectLifecycleTransitions:
                     return [
                         CollectedJob(
                             external_id="companion-re",
-                            title="Job companion-re",
+                            title="AI Engineer",
                             location="Shanghai",
                             matched_tags=["AI"],
                         ),
@@ -555,13 +555,13 @@ class TestLiveCollectLifecycleTransitions:
                 return [
                     CollectedJob(
                         external_id="ext-1",
-                        title="Job ext-1",
+                        title="Security Engineer",
                         location="Shanghai",
                         matched_tags=["AI"],
                     ),
                     CollectedJob(
                         external_id="companion-re",
-                        title="Job companion-re",
+                        title="AI Engineer",
                         location="Shanghai",
                         matched_tags=["AI"],
                     ),
@@ -646,7 +646,7 @@ class TestLiveCollectSkipWarnings:
                 self._returned_jobs = [
                     CollectedJob(
                         external_id=f"mass-{i}",
-                        title=f"Job mass-{i}",
+                        title="Security Engineer",
                         location="Shanghai",
                         matched_tags=["AI"],
                     )

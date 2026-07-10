@@ -620,6 +620,7 @@ def prune(
         f"updated={result.updated}, "
         f"excluded={result.excluded}, "
         f"restored={result.restored}, "
+        f"review={result.moved_to_review}, "
         f"normalized={result.normalized}, "
         f"deleted={result.deleted}"
     )
@@ -903,6 +904,117 @@ def schedule_status(
         raise typer.Exit(1)
 
     typer.echo(output)
+
+
+@app.command("relevance-audit")
+def relevance_audit(
+    db_path: str = typer.Option(
+        None, "--db-path", help="Path to the SQLite database file."
+    ),
+    sample_size: int = typer.Option(
+        10, "--sample-size", help="Number of deterministic samples per projected status."
+    ),
+    seed: int = typer.Option(
+        20260710, "--seed", help="PRNG seed for deterministic sampling."
+    ),
+    json_output: str = typer.Option(
+        None,
+        "--json-output",
+        help="Write the complete audit report as UTF-8 JSON to this path.",
+    ),
+    export_review: str = typer.Option(
+        None,
+        "--export-review",
+        help="Write UTF-8 JSONL for projected review rows to this path.",
+    ),
+):
+    """Run a read-only relevance audit of the current classifier.
+
+    Scans all stored jobs, recomputes classification in memory, and reports
+    projected counts, drift, algorithm residuals, suspicious targets, and
+    duplicate identity groups.  The database is never modified.
+    """
+    import json
+
+    from findjobs.db import init_db
+    from findjobs.relevance_audit import audit_report_to_dict, run_audit
+
+    session = init_db(Path(db_path) if db_path else None)
+    try:
+        report = run_audit(session, sample_size=sample_size, seed=seed)
+    finally:
+        session.close()
+
+    # -- Print human-readable summary -----------------------------------------
+    typer.echo(f"Relevance audit results")
+    typer.echo(f"  scanned:                  {report.scanned}")
+    typer.echo(f"  projected target:         {report.projected_target}")
+    typer.echo(f"  projected review:         {report.projected_review}")
+    typer.echo(f"  projected excluded:       {report.projected_excluded}")
+    typer.echo(f"  drift count:              {report.drift_count}")
+    typer.echo(f"  algorithm residual:       {report.algorithm_residual_count}")
+    typer.echo(f"  suspicious target:        {report.suspicious_target_count}")
+    typer.echo(f"  duplicate identity:       {report.duplicate_identity_groups}")
+
+    # Reason-code summary
+    if report.reason_code_counts:
+        typer.echo("  reason codes:")
+        for code, cnt in sorted(report.reason_code_counts.items()):
+            typer.echo(f"    {code}: {cnt}")
+
+    # Tag summary
+    if report.projected_tags:
+        typer.echo("  projected tags:")
+        for status, counts in sorted(report.projected_tags.items()):
+            rendered = ", ".join(
+                f"{tag}={count}" for tag, count in sorted(counts.items())
+            ) or "none"
+            typer.echo(f"    {status}: {rendered}")
+
+    # Sampled rows
+    def _show_sample(label: str, samples: list) -> None:
+        if not samples:
+            typer.echo(f"  sample {label}: (none)")
+            return
+        typer.echo(f"  sample {label}:")
+        for s in samples:
+            tags_str = ", ".join(s.get("projected_tags", [])) or "none"
+            reasons = ", ".join(s.get("projected_reasons", [])) or "none"
+            typer.echo(
+                f"    [{s['id']}] {s['company']}  {s['title']}  "
+                f"[{s['projected_status']}; {tags_str}; {reasons}]"
+            )
+
+    _show_sample("target", report.sample_target)
+    _show_sample("review", report.sample_review)
+    _show_sample("excluded", report.sample_excluded)
+
+    # -- JSON output (requirement 9) -------------------------------------------
+    if json_output:
+        out_path = Path(json_output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        data = audit_report_to_dict(report)
+        out_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        typer.echo(f"JSON report written to: {out_path}")
+
+    # -- Export review rows as JSONL (requirement 9) ---------------------------
+    if export_review:
+        export_path = Path(export_review)
+        export_path.parent.mkdir(parents=True, exist_ok=True)
+        with export_path.open("w", encoding="utf-8") as f:
+            for row in report.projected_review_rows:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        typer.echo(f"Review rows exported to: {export_path}")
+
+    # -- Exit code (requirement 10) --------------------------------------------
+    if (
+        report.algorithm_residual_count > 0
+        or report.suspicious_target_count > 0
+        or report.duplicate_identity_groups > 0
+    ):
+        raise typer.Exit(1)
 
 
 def run() -> None:

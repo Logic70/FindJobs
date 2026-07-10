@@ -13,7 +13,10 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from findjobs.classify import classify_job
+from findjobs.classify import (
+    CLASSIFICATION_VERSION,
+    classify_job_detailed,
+)
 from findjobs.collection import DOMAIN_TAGS
 from findjobs.job_types import format_job_type
 from findjobs.locations import format_locations
@@ -34,23 +37,26 @@ class ReclassificationResult:
     """Outcome of a reclassification pass.
 
     Attributes:
-        scanned:   Total number of jobs examined.
-        updated:   Number of individual field-level mutations
-                   (relevance_status, matched_tags, location, job_type
-                   each count separately).
-        excluded:  Jobs whose relevance_status changed from ``target`` to
-                   ``excluded``.
-        restored:  Jobs whose relevance_status changed from ``excluded``
-                   back to ``target``.
-        normalized: Number of location/job_type field normalizations applied.
-        deleted:   Always zero — this operation never removes rows.
-        applied:   True when changes were flushed to the database.
+        scanned:        Total number of jobs examined.
+        updated:        Number of individual field-level mutations
+                        (relevance_status, matched_tags, location, job_type
+                        each count separately).
+        excluded:       Jobs whose relevance_status changed from ``target`` or
+                        ``review`` to ``excluded``.
+        restored:       Jobs whose relevance_status changed from ``excluded``
+                        back to ``target`` or ``review``.
+        moved_to_review: Jobs whose relevance_status changed from ``target``
+                        or ``excluded`` to ``review``.
+        normalized:     Number of location/job_type field normalizations applied.
+        deleted:        Always zero — this operation never removes rows.
+        applied:        True when changes were flushed to the database.
     """
 
     scanned: int
     updated: int
     excluded: int
     restored: int
+    moved_to_review: int
     normalized: int
     deleted: int = 0
     applied: bool = False
@@ -84,20 +90,24 @@ def reclassify_jobs(
     field_updates = 0
     excluded = 0
     restored = 0
+    moved_to_review = 0
     normalized = 0
 
     for job in session.query(Job).all():
         scanned += 1
-        tags = classify_job(
+        detailed = classify_job_detailed(
             job.title or "",
             job.description or "",
             job.job_type or "",
         )
-        target_status = "target" if _is_relevant(tags) else "excluded"
-        encoded_tags = json.dumps(tags, ensure_ascii=False)
+        target_status = detailed.relevance_status
+        encoded_tags = json.dumps(list(detailed.tags), ensure_ascii=False)
+        encoded_reasons = json.dumps(list(detailed.reasons), ensure_ascii=False)
 
         old_status = job.relevance_status or "target"
         old_tags = job.matched_tags or ""
+        old_version = job.classification_version or ""
+        old_reasons = job.classification_reasons or ""
 
         # Normalise location / job type (always compute, only mutate on apply).
         norm_loc = format_locations(job.location or "")
@@ -108,10 +118,16 @@ def reclassify_jobs(
         # --- Detect field-level changes ------------------------------------
         status_changed = target_status != old_status
         tags_changed = encoded_tags != old_tags
+        version_changed = detailed.version != old_version
+        reasons_changed = encoded_reasons != old_reasons
 
         if status_changed:
             field_updates += 1
         if tags_changed:
+            field_updates += 1
+        if version_changed:
+            field_updates += 1
+        if reasons_changed:
             field_updates += 1
         if loc_changed:
             field_updates += 1
@@ -123,13 +139,17 @@ def reclassify_jobs(
         # --- Count status transitions ---------------------------------------
         if status_changed and target_status == "excluded":
             excluded += 1
-        elif status_changed and target_status == "target":
+        elif status_changed and target_status == "review":
+            moved_to_review += 1
+        elif status_changed and target_status in ("target",):
             restored += 1
 
         # --- Mutate when applying -----------------------------------------
         if apply:
             job.relevance_status = target_status
             job.matched_tags = encoded_tags
+            job.classification_version = detailed.version
+            job.classification_reasons = encoded_reasons
             if loc_changed:
                 job.location = norm_loc
             if type_changed:
@@ -143,6 +163,7 @@ def reclassify_jobs(
         updated=field_updates,
         excluded=excluded,
         restored=restored,
+        moved_to_review=moved_to_review,
         normalized=normalized,
         deleted=0,
         applied=apply,
