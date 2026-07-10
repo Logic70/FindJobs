@@ -166,6 +166,8 @@ def upsert_job(
         # Refresh mutable fields on repeat sighting.
         existing.last_seen_at = now
         existing.status = "active"
+        existing.missing_run_count = 0
+        existing.relevance_status = "target"
         existing.title = job.title
         existing.url = job.url or existing.url
         existing.description = job.description
@@ -250,6 +252,16 @@ def complete_collect_run(
     run.errors = errors
 
 
+def fail_collect_run(session: Session, run: CollectRun, errors: str) -> None:
+    """Mark an existing collect run as failed without creating a new row.
+
+    Sets status, finished_at, and the complete error text on the given run.
+    """
+    run.status = "failed"
+    run.finished_at = _utcnow()
+    run.errors = errors
+
+
 # ---------------------------------------------------------------------------
 # Batch upsert
 # ---------------------------------------------------------------------------
@@ -277,3 +289,140 @@ def collect_jobs(
             new_count += 1
         upsert_job(session, source_id, company_id, collect_run_id, cj)
     return len(unique_collected_jobs), new_count
+
+
+# ---------------------------------------------------------------------------
+# Job lifecycle reconciliation
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ReconcileResult:
+    """Result of a lifecycle reconciliation after a successful collect run.
+
+    Attributes:
+        action: One of ``"skipped_partial"``, ``"skipped_zero_target"``,
+            ``"skipped_mass_drop"``, or ``"reconciled"``.
+        total_target: Number of target-relevance jobs tracked for this source.
+        seen_target: How many of those were observed in this run.
+        made_missing: Active jobs that became missing.
+        made_archived: Missing jobs that became archived.
+        kept_archived: Archived jobs that remained archived (no counter bump).
+        reason: Human-readable explanation when action was skipped.
+    """
+
+    action: str = ""
+    total_target: int = 0
+    seen_target: int = 0
+    made_missing: int = 0
+    made_archived: int = 0
+    kept_archived: int = 0
+    reason: str = ""
+
+
+def reconcile_jobs_after_collect(
+    session: Session,
+    source_id: int,
+    collect_run_id: int,
+    is_complete: bool,
+) -> ReconcileResult:
+    """Reconcile job lifecycle after a successful collect run.
+
+    For sources with ``is_complete=True``, transitions unseen target jobs
+    through *active → missing → archived*.  Seen target jobs are kept active
+    with ``missing_run_count=0``.  Safety guards prevent reconciliation when
+    the run observed zero target jobs or would drop more than 50 % of 10+
+    tracked target jobs.
+
+    For partial sources (``is_complete=False``) all state transitions are
+    skipped and the result reports ``action="skipped_partial"``.
+    """
+    if not is_complete:
+        return ReconcileResult(
+            action="skipped_partial",
+            reason="Source is configured as partial collection scope",
+        )
+
+    # Derive seen job ids from JobObservation rows for this run.
+    seen_rows = (
+        session.query(JobObservation.job_id)
+        .filter(JobObservation.collect_run_id == collect_run_id)
+        .all()
+    )
+    seen_job_ids = {row[0] for row in seen_rows}
+
+    # Reconcile only target-relevance jobs.
+    target_jobs: list[Job] = (
+        session.query(Job)
+        .filter(Job.source_id == source_id, Job.relevance_status == "target")
+        .all()
+    )
+
+    if not target_jobs:
+        return ReconcileResult(action="reconciled", total_target=0)
+
+    # -- Partition: only active/missing jobs can transition state ---------------
+    active_missing_jobs = [j for j in target_jobs if j.status in {"active", "missing"}]
+
+    total_active_missing = len(active_missing_jobs)
+    active_missing_ids = {j.id for j in active_missing_jobs}
+    seen_active_missing_ids = seen_job_ids & active_missing_ids
+    unseen_active_missing_ids = active_missing_ids - seen_job_ids
+
+    # -- Safety guard: zero observed active/missing target jobs -----------------
+    if total_active_missing > 0 and len(seen_active_missing_ids) == 0:
+        return ReconcileResult(
+            action="skipped_zero_target",
+            total_target=total_active_missing,
+            reason="Successful collect run observed zero active/missing target jobs",
+        )
+
+    # -- Safety guard: mass drop (>50 % of >=10 active/missing jobs) ------------
+    if (
+        total_active_missing >= 10
+        and len(unseen_active_missing_ids) / total_active_missing > 0.5
+    ):
+        return ReconcileResult(
+            action="skipped_mass_drop",
+            total_target=total_active_missing,
+            seen_target=len(seen_active_missing_ids),
+            reason=(
+                f"{len(unseen_active_missing_ids)}/{total_active_missing} "
+                f"active/missing target jobs would become unseen (>50 %)"
+            ),
+        )
+
+    # -- Reconcile --------------------------------------------------------------
+    made_missing = 0
+    made_archived = 0
+    kept_archived = 0
+
+    for job in target_jobs:
+        if job.id in seen_job_ids:
+            # Upsert already refreshed the job; ensure consistent state.
+            job.status = "active"
+            job.missing_run_count = 0
+        else:
+            if job.status == "active":
+                job.status = "missing"
+                job.missing_run_count = 1
+                made_missing += 1
+            elif job.status == "missing":
+                job.missing_run_count += 1
+                if job.missing_run_count >= 2:
+                    job.status = "archived"
+                    made_archived += 1
+            elif job.status == "archived":
+                # Archived jobs stay archived without unbounded counter growth.
+                kept_archived += 1
+
+    session.flush()
+
+    return ReconcileResult(
+        action="reconciled",
+        total_target=total_active_missing,
+        seen_target=len(seen_active_missing_ids),
+        made_missing=made_missing,
+        made_archived=made_archived,
+        kept_archived=kept_archived,
+    )

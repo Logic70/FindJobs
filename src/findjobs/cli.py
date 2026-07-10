@@ -309,9 +309,11 @@ def _run_live_collect(
         collect_jobs,
         complete_collect_run,
         create_collect_run,
+        fail_collect_run,
+        reconcile_jobs_after_collect,
     )
     from findjobs.db import init_db
-    from findjobs.models import _utcnow
+    from findjobs.models import CollectRun
     from findjobs.repository import sync_config
 
     config = load_sources()
@@ -328,6 +330,20 @@ def _run_live_collect(
             )
             continue
 
+        echo(f"  {source_config.name}: collecting...")
+
+        # -- Phase 1: create and commit the running record -------------------
+        try:
+            run = create_collect_run(session, source.id)
+            session.commit()
+        except Exception as e:
+            echo(
+                f"  {source_config.name}: failed to create collect run - {e}"
+            )
+            session.rollback()
+            continue
+
+        # -- Phase 2: collect, persist, reconcile ---------------------------
         try:
             adapter = get_adapter(source_config.adapter)
             context = AdapterContext(
@@ -336,26 +352,64 @@ def _run_live_collect(
                 base_url=source_config.base_url,
                 fetch_url=source_config.fetch_url,
             )
-            echo(f"  {source_config.name}: collecting...")
             jobs = adapter.collect(context)
 
-            run = create_collect_run(session, source.id)
             total, new_count = collect_jobs(
                 session, source.id, company.id, run.id, jobs
             )
-            complete_collect_run(session, run, total, new_count)
-            session.commit()
-            echo(
-                f"  {source_config.name}: {total} jobs collected, {new_count} new"
+
+            is_complete = (
+                source_config.collection_completeness
+                == "complete_for_target_scope"
             )
+            result = reconcile_jobs_after_collect(
+                session, source.id, run.id, is_complete
+            )
+
+            # -- Handle reconciliation result --------------------------------
+            if result.action.startswith("skipped_"):
+                complete_collect_run(
+                    session,
+                    run,
+                    total,
+                    new_count,
+                    errors=f"lifecycle {result.action}: {result.reason}",
+                )
+                session.commit()
+                echo(
+                    f"  {source_config.name}: {total} jobs collected, "
+                    f"{new_count} new "
+                    f"[lifecycle: {result.action} - {result.reason}]"
+                )
+            else:
+                complete_collect_run(session, run, total, new_count)
+                session.commit()
+                msg = (
+                    f"  {source_config.name}: {total} jobs collected, "
+                    f"{new_count} new"
+                )
+                if result.made_missing or result.made_archived:
+                    parts = []
+                    if result.made_missing:
+                        parts.append(f"{result.made_missing} missing")
+                    if result.made_archived:
+                        parts.append(f"{result.made_archived} archived")
+                    msg += f" [lifecycle: {', '.join(parts)}]"
+                echo(msg)
+
         except Exception as e:
+            run_id = run.id
             session.rollback()
-            run = create_collect_run(session, source.id)
-            run.status = "failed"
-            run.finished_at = _utcnow()
-            run.errors = str(e)
-            session.commit()
-            echo(f"  {source_config.name}: error - {e}")
+            run = session.get(CollectRun, run_id)
+            if run is None:
+                echo(
+                    f"  {source_config.name}: consistency error - "
+                    f"collect run {run_id} vanished after commit"
+                )
+            else:
+                fail_collect_run(session, run, str(e))
+                session.commit()
+                echo(f"  {source_config.name}: error - {e}")
 
     session.close()
 
@@ -537,21 +591,37 @@ def prune(
     db_path: str = typer.Option(
         None, "--db-path", help="Path to the SQLite database file."
     ),
+    apply: bool = typer.Option(
+        False,
+        "--apply/--dry-run",
+        help="Apply reclassification (default is dry-run preview).",
+    ),
 ):
-    """Reclassify stored jobs and delete jobs outside the AI/security scope."""
+    """Reclassify stored jobs; mark irrelevant ones as excluded without deleting.
+
+    By default this runs as a dry-run preview that shows what would change.
+    Pass ``--apply`` to persist the changes.
+    """
     from findjobs.db import init_db
-    from findjobs.maintenance import reclassify_and_prune_irrelevant_jobs
+    from findjobs.maintenance import reclassify_jobs
 
     session = init_db(Path(db_path) if db_path else None)
     try:
-        result = reclassify_and_prune_irrelevant_jobs(session)
-        session.commit()
+        result = reclassify_jobs(session, apply=apply)
+        if apply:
+            session.commit()
     finally:
         session.close()
 
+    mode = "Applied" if apply else "Preview (dry-run)"
     typer.echo(
-        "Pruned irrelevant jobs: "
-        f"scanned={result.scanned}, updated={result.updated}, deleted={result.deleted}"
+        f"{mode} reclassification: "
+        f"scanned={result.scanned}, "
+        f"updated={result.updated}, "
+        f"excluded={result.excluded}, "
+        f"restored={result.restored}, "
+        f"normalized={result.normalized}, "
+        f"deleted={result.deleted}"
     )
 
 

@@ -6,6 +6,7 @@ config objects without manually constructing ORM instances.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -42,6 +43,11 @@ def sync_company(session: Session, config: CompanyConfig) -> Company:
     return company
 
 
+def _config_to_json(config: SourceConfig) -> str:
+    """Serialize a SourceConfig as deterministic JSON for config_yaml."""
+    return json.dumps(config.model_dump(), ensure_ascii=False, sort_keys=True, default=str)
+
+
 def sync_source(session: Session, config: SourceConfig, company_id: int) -> Source:
     """Ensure a source row exists matching *config*; return it.
 
@@ -53,11 +59,14 @@ def sync_source(session: Session, config: SourceConfig, company_id: int) -> Sour
         .filter(Source.slug == config.slug, Source.company_id == company_id)
         .first()
     )
+    config_yaml = _config_to_json(config)
+
     if existing is not None:
         existing.name = config.name
         existing.source_type = config.source_type
         existing.base_url = config.base_url
         existing.is_active = config.is_active
+        existing.config_yaml = config_yaml
         return existing
 
     source = Source(
@@ -67,6 +76,7 @@ def sync_source(session: Session, config: SourceConfig, company_id: int) -> Sour
         source_type=config.source_type,
         base_url=config.base_url,
         is_active=config.is_active,
+        config_yaml=config_yaml,
     )
     session.add(source)
     session.flush()

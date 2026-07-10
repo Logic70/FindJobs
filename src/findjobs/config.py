@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Literal
 
 import yaml
 from pydantic import BaseModel, field_validator
@@ -47,6 +47,7 @@ class SourceConfig(BaseModel):
     fetch_url: str = ""
     inactive_reason: str = ""
     parser_config: dict[str, Any] = {}
+    collection_completeness: Literal["partial", "complete_for_target_scope"] = "partial"
 
     @field_validator("slug", "name", "company_slug", "base_url", "fetch_url")
     @classmethod

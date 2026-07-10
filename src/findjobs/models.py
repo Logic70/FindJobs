@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 
@@ -67,6 +67,14 @@ class Job(Base):
     title = Column(String(300), nullable=False)
     url = Column(String(500), default="")
     description = Column(Text, default="")
+
+    # Classification and tracking (Phase 1A)
+    relevance_status = Column(String(20), nullable=False, default="target", index=True)
+    missing_run_count = Column(Integer, nullable=False, default=0)
+    classification_version = Column(String(50), nullable=False, default="")
+    classification_reasons = Column(Text, nullable=False, default="[]")
+    responsibilities = Column(Text, nullable=False, default="")
+    requirements = Column(Text, nullable=False, default="")
 
     # Salary
     salary_text = Column(Text, default="")
@@ -137,6 +145,9 @@ class UserMark(Base):
     """User bookmark / hide / apply note for a job."""
 
     __tablename__ = "user_marks"
+    __table_args__ = (
+        UniqueConstraint("job_id", "mark_type", name="uq_user_marks_job_mark"),
+    )
 
     id = Column(Integer, primary_key=True)
     job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
