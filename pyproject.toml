@@ -22,6 +22,8 @@ dependencies = [
     "typer",
     "rich",
     "cryptography>=49.0.0",
+    "python-docx",
+    "pypdf",
 ]
 
 [project.scripts]

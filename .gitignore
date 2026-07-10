@@ -11,6 +11,7 @@ __pycache__/
 
 # Personal profile (contains background, salary expectations, excluded companies)
 profile/profile.md
+profile/profile.json
 
 # Personal resume/source documents
 *.docx

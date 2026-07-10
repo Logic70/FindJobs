@@ -151,6 +151,51 @@ def init_profile(
     typer.echo(f"Profile initialized: {destination}")
 
 
+@profile_app.command("import")
+def import_profile(
+    source: str = typer.Argument(
+        ..., help="Path to the resume file (DOCX or PDF)."
+    ),
+    json_output: str = typer.Option(
+        "profile/profile.json", "--json-output",
+        help="Destination path for the JSON profile.",
+    ),
+    markdown_output: str = typer.Option(
+        "profile/profile.md", "--markdown-output",
+        help="Destination path for the Markdown profile.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite destination files if they already exist.",
+    ),
+):
+    """Import a local resume DOCX/PDF into a privacy-safe profile.
+
+    Extracts structured fields from the resume, detects skills, redacts
+    contact information, and writes deterministic JSON and editable Markdown
+    outputs.  Does **not** access the jobs database or external services.
+    """
+    from findjobs.profile_import import import_resume
+
+    try:
+        profile = import_resume(
+            Path(source),
+            force=force,
+            json_output=Path(json_output),
+            markdown_output=Path(markdown_output),
+        )
+    except (FileNotFoundError, ValueError, FileExistsError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(
+        f"Profile imported: {len(profile.skills)} skills detected, "
+        f"{len(profile.experiences)} experience entries, "
+        f"{len(profile.education)} education entries."
+    )
+
+
 @app.command("sources")
 def list_configured_sources(
     active_only: bool = typer.Option(
