@@ -1150,6 +1150,95 @@ def relevance_audit(
         raise typer.Exit(1)
 
 
+@app.command()
+def recommend(
+    profile: str = typer.Option(
+        "profile/profile.md",
+        "--profile",
+        help="Path to the recommendation profile file (.md or .json).",
+    ),
+    db_path: str = typer.Option(
+        None, "--db-path", help="Path to the SQLite database file."
+    ),
+    limit: int = typer.Option(
+        50,
+        "--limit",
+        help="Maximum number of recommendations to return (1-1000).",
+    ),
+    format: str = typer.Option(
+        "markdown",
+        "--format",
+        help='Output format: "markdown" or "json".',
+    ),
+    output: str = typer.Option(
+        None,
+        "--output",
+        help="Output file path (stdout if omitted).",
+    ),
+):
+    """Score and rank active jobs against your recommendation profile.
+
+    Loads the privacy-safe profile, runs deterministic scoring, and
+    produces a report in Markdown or JSON.  The database is **never**
+    modified — no facts are committed, flushed, or written.
+    """
+    # Validate format before any side-effect operations.
+    fmt = format.strip().lower()
+    if fmt not in ("markdown", "json"):
+        typer.echo(
+            f"Error: invalid --format '{format}'. Use 'markdown' or 'json'.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    # Validate limit before any side-effect operations.
+    if not isinstance(limit, int) or limit < 1 or limit > 1000:
+        typer.echo(
+            f"Error: invalid --limit {limit!r}."
+            " Must be a positive integer between 1 and 1000.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    # Load profile (may raise FileNotFoundError / ValueError).
+    from findjobs.recommendation_profile import load_recommendation_profile
+
+    try:
+        rec_profile = load_recommendation_profile(Path(profile))
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Error loading profile: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    # Open database, run scoring, close.
+    from findjobs.db import init_db
+    from findjobs.recommendation import recommend_from_session
+
+    session = init_db(Path(db_path) if db_path else None)
+    try:
+        result = recommend_from_session(session, rec_profile, limit=limit)
+    finally:
+        session.close()
+
+    # Build report.
+    if fmt == "json":
+        from findjobs.recommendation_output import serialize_to_json
+
+        report = serialize_to_json(result)
+    else:
+        from findjobs.recommendation_output import render_to_markdown
+
+        report = render_to_markdown(result)
+
+    # Write output.
+    if output:
+        out_path = Path(output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(report, encoding="utf-8")
+        _safe_stdout_emit(f"Recommendation report written to: {out_path}")
+    else:
+        _safe_stdout_emit(report)
+
+
 def run() -> None:
     """Entry point for the CLI."""
     app()

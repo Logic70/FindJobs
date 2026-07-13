@@ -27,6 +27,7 @@ reports/match/*-matches.md
 reports/match/*-career-advice.md
 reports/match/*-profile-needed.md
 reports/match/*-priorities.md
+reports/match/recommendations.*
 reports/priority/*.md
 reports/adapter-repair/*.md
 
