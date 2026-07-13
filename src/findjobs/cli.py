@@ -671,6 +671,56 @@ def prune(
     )
 
 
+@app.command("details-backfill")
+def details_backfill(
+    apply: bool = typer.Option(
+        False,
+        "--apply/--dry-run",
+        help="Persist normalised details (default is dry-run preview).",
+    ),
+    db_path: str = typer.Option(
+        None, "--db-path", help="Path to the SQLite database file."
+    ),
+):
+    """Backfill normalised responsibilities and requirements for stored jobs.
+
+    Scans every stored ``Job`` row and canonicalises its
+    ``responsibilities``, ``requirements``, and ``detail_completeness``
+    using recognised section headings.  Existing explicit values are never
+    overwritten — only missing fields may be inferred.
+
+    By default this runs as a dry-run preview that shows what would change.
+    Pass ``--apply`` to persist the changes.
+    """
+    from findjobs.db import init_db
+    from findjobs.detail_backfill import backfill_job_details
+
+    session = init_db(Path(db_path) if db_path else None)
+    try:
+        result = backfill_job_details(session, apply=apply)
+        if apply:
+            session.commit()
+    except Exception:
+        if apply:
+            session.rollback()
+        raise
+    finally:
+        session.close()
+
+    mode = "Applied" if apply else "Preview (dry-run)"
+    typer.echo(
+        f"{mode} details-backfill: "
+        f"scanned={result.scanned}, "
+        f"updated={result.updated}, "
+        f"deleted={result.deleted}, "
+        f"full={result.full}, "
+        f"responsibilities_only={result.responsibilities_only}, "
+        f"requirements_only={result.requirements_only}, "
+        f"combined_only={result.combined_only}, "
+        f"missing={result.missing}"
+    )
+
+
 def _export_file(
     *,
     db_path: str | None,
