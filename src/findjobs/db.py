@@ -16,7 +16,7 @@ from sqlalchemy.pool import NullPool
 # Revision constants  (keep in sync with migration file down_revision chains)
 # ---------------------------------------------------------------------------
 _BASELINE_REVISION = "0001"  # initial schema (all legacy tables)
-_HEAD_REVISION = "0002"  # Phase-1 additions
+_HEAD_REVISION = "0003"  # detail completeness
 
 _KNOWN_LEGACY_TABLES = frozenset(
     {"companies", "sources", "jobs", "job_observations", "collect_runs", "user_marks"}

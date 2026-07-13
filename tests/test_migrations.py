@@ -190,7 +190,7 @@ class TestFreshDatabase:
             db_path = Path(tmpdir) / "fresh2.db"
             session = init_db(db_path)
             rev = _alembic_version(session.bind)
-            assert rev == "0002", f"Expected head 0002, got {rev!r}"
+            assert rev == "0003", f"Expected head 0003, got {rev!r}"
             session.close()
 
     def test_fresh_db_has_new_job_columns(self):
@@ -209,6 +209,7 @@ class TestFreshDatabase:
             assert "classification_reasons" in cols
             assert "responsibilities" in cols
             assert "requirements" in cols
+            assert "detail_completeness" in cols
             session.close()
 
     def test_init_db_outside_repo_cwd(self):
@@ -335,6 +336,7 @@ class TestLegacySchemaUpgrade:
             assert "classification_reasons" in cols
             assert "responsibilities" in cols
             assert "requirements" in cols
+            assert "detail_completeness" in cols
 
             # Check defaults applied to existing row
             with engine2.connect() as conn:
@@ -342,7 +344,8 @@ class TestLegacySchemaUpgrade:
                     sa_text(
                         "SELECT relevance_status, missing_run_count, "
                         "classification_version, classification_reasons, "
-                        "responsibilities, requirements FROM jobs WHERE id=1"
+                        "responsibilities, requirements, detail_completeness "
+                        "FROM jobs WHERE id=1"
                     )
                 ).fetchone()
                 assert row[0] == "target"
@@ -351,6 +354,7 @@ class TestLegacySchemaUpgrade:
                 assert row[3] == "[]"
                 assert row[4] == ""
                 assert row[5] == ""
+                assert row[6] == "missing"
 
             engine2.dispose()
 
@@ -366,7 +370,52 @@ class TestLegacySchemaUpgrade:
             engine2 = create_engine(_legacy_db_url(Path(tmpdir)), echo=False)
             upgrade_schema(engine2)
             rev = _alembic_version(engine2)
-            assert rev == "0002"
+            assert rev == "0003"
+            engine2.dispose()
+
+    def test_legacy_upgrade_preserves_data_count(self):
+        """Upgrade through 0003 preserves all existing rows and counts."""
+        from findjobs.db import upgrade_schema
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = _legacy_engine(Path(tmpdir))
+            self._seed_legacy(engine)
+            engine.dispose()
+
+            engine2 = create_engine(_legacy_db_url(Path(tmpdir)), echo=False)
+            upgrade_schema(engine2)
+
+            with engine2.connect() as conn:
+                counts = {
+                    "companies": conn.execute(
+                        sa_text("SELECT COUNT(*) FROM companies")
+                    ).scalar(),
+                    "sources": conn.execute(
+                        sa_text("SELECT COUNT(*) FROM sources")
+                    ).scalar(),
+                    "jobs": conn.execute(
+                        sa_text("SELECT COUNT(*) FROM jobs")
+                    ).scalar(),
+                    "collect_runs": conn.execute(
+                        sa_text("SELECT COUNT(*) FROM collect_runs")
+                    ).scalar(),
+                    "job_observations": conn.execute(
+                        sa_text("SELECT COUNT(*) FROM job_observations")
+                    ).scalar(),
+                    "user_marks": conn.execute(
+                        sa_text("SELECT COUNT(*) FROM user_marks")
+                    ).scalar(),
+                }
+
+            assert counts == {
+                "companies": 1,
+                "sources": 1,
+                "jobs": 1,
+                "collect_runs": 1,
+                "job_observations": 1,
+                "user_marks": 1,
+            }, f"Row counts changed after migration: {counts}"
+
             engine2.dispose()
 
     def test_legacy_plus_extra_table_refused(self):

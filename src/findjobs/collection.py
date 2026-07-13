@@ -15,6 +15,10 @@ from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from findjobs.classify import CLASSIFICATION_VERSION, classify_job_detailed
+from findjobs.job_details import (
+    compute_detail_completeness,
+    normalize_job_details,
+)
 from findjobs.job_types import format_job_type
 from findjobs.locations import format_locations
 from findjobs.models import CollectRun, Job, JobObservation, _utcnow
@@ -49,6 +53,9 @@ class CollectedJob:
     relevance_status: str = "target"
     classification_version: str = ""
     classification_reasons: list[str] = field(default_factory=list)
+    responsibilities: str = ""
+    requirements: str = ""
+    detail_completeness: str = "missing"
 
 
 # ---------------------------------------------------------------------------
@@ -111,11 +118,24 @@ def _job_identities(job: CollectedJob) -> list[tuple[str, str]]:
 
 
 def normalize_collected_job(job: CollectedJob) -> CollectedJob:
-    """Normalize fields that drive filtering, display, and fallback identity."""
+    """Normalize fields that drive filtering, display, and fallback identity.
+
+    Responsibility/requirement detail completeness is derived centrally from
+    the description via :func:`~findjobs.job_details.normalize_job_details`,
+    never trusted from adapter input.
+    """
+    details = normalize_job_details(
+        description=job.description,
+        responsibilities=job.responsibilities,
+        requirements=job.requirements,
+    )
     return replace(
         job,
         location=format_locations(job.location),
         job_type=format_job_type(job.job_type),
+        responsibilities=details.responsibilities,
+        requirements=details.requirements,
+        detail_completeness=details.detail_completeness,
     )
 
 
@@ -191,6 +211,14 @@ def upsert_job(
         if job.published_at is not None:
             existing.published_at = job.published_at
         existing.matched_tags = json.dumps(job.matched_tags, ensure_ascii=False)
+        # -- Detail merge: never erase a previously nonempty field -------------
+        merged_resp = job.responsibilities or existing.responsibilities
+        merged_req = job.requirements or existing.requirements
+        existing.responsibilities = merged_resp
+        existing.requirements = merged_req
+        existing.detail_completeness = compute_detail_completeness(
+            existing.description, merged_resp, merged_req
+        )
         db_job: Job = existing
     else:
         db_job = Job(
@@ -218,6 +246,9 @@ def upsert_job(
             classification_reasons=json.dumps(
                 job.classification_reasons, ensure_ascii=False
             ),
+            responsibilities=job.responsibilities,
+            requirements=job.requirements,
+            detail_completeness=job.detail_completeness,
         )
         session.add(db_job)
 

@@ -75,6 +75,7 @@ class Job(Base):
     classification_reasons = Column(Text, nullable=False, default="[]")
     responsibilities = Column(Text, nullable=False, default="")
     requirements = Column(Text, nullable=False, default="")
+    detail_completeness = Column(String(30), nullable=False, default="missing", server_default="missing")
 
     # Salary
     salary_text = Column(Text, default="")
