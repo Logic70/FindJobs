@@ -467,6 +467,15 @@ def render_markdown(profile: Profile) -> str:
         lines.append("_Not specified._")
     lines.append("")
 
+    lines.append("## Target Roles")
+    lines.append("")
+    if profile.target_roles:
+        for tr in profile.target_roles:
+            lines.append(f"- {tr}")
+    else:
+        lines.append("_Not specified._")
+    lines.append("")
+
     lines.append("## Salary Expectation")
     lines.append("")
     lines.append("_Not specified. Salary expectation must not be estimated._")
