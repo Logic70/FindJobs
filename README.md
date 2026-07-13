@@ -189,17 +189,74 @@ before storing only relevant jobs.
 
 ### Weekly Schedule
 
-Preview the Windows scheduled task command:
+Install a weekly scheduled workflow via Windows Task Scheduler:
 
 ```cmd
+rem Preview the default command (Monday 09:00, dry-run by default):
 findjobs schedule install
+
+rem Install with custom day and time:
+findjobs schedule install --weekday FRI --time 14:30 --no-dry-run
+
+rem Collection-only (no export/analysis):
+findjobs schedule install --collect-only --no-dry-run
+
+rem Check the task status:
+findjobs schedule status
+
+rem Run the task immediately:
+findjobs schedule run
+
+rem Actually trigger the task:
+findjobs schedule run --no-dry-run
 ```
 
-By default this schedules the full weekly workflow. The generated task action
-enters this project directory and runs `uv run findjobs weekly --live`, so it
-does not depend on Task Scheduler finding the `findjobs` console script on
-`PATH`. Use `--collect-only` only when you want collection without
-export/analysis.
+**Default behavior.** `findjobs schedule install` runs in dry-run mode by
+default, printing the `schtasks /create` command without executing it.
+Pass `--no-dry-run` to register the task (Windows only).
+
+The default schedule is **every Monday at 09:00** (`--weekday MON --time 09:00`).
+The generated task action enters this project directory and runs
+`uv run findjobs weekly --live`, so it does not depend on Task Scheduler
+finding the `findjobs` console script on `PATH`. Use `--collect-only` when
+you want collection without export/analysis.
+
+**Flags and semantics.** The generated task includes `/IT` (run only while
+the task user is logged in), `/RL LIMITED` (run without elevated privileges),
+and `/F` (replace an existing task with the same name). Locking the screen does
+not log the user out; signing out does, so a signed-out task user will not run
+this task.
+
+Task Scheduler power settings may prevent a task from starting on battery or
+stop it after switching to battery. Inspect or change those settings in the
+task's **Conditions** tab when laptop behavior matters. A live network
+connection is required to collect jobs from official career pages.
+
+**Reports and logs.** Per-attempt output is written under
+`reports/logs/`:
+
+| File | Meaning |
+|---|---|
+| `reports/logs/weekly_<timestamp>_<pid>_<uuid>.log` | Full attempt log (console output + diagnostics) |
+| `reports/logs/weekly_<timestamp>_<pid>_<uuid>.summary.json` | Structured per-attempt summary (status, duration, errors) |
+| `reports/logs/weekly-latest.json` | Atomically updated copy of the most recent lock-acquired run summary |
+
+**Exit codes in per-attempt summary JSON:**
+
+| Exit code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | Workflow or source-collection failure |
+| 2 | Concurrent-run block (process lock held by another instance) |
+
+A blocked attempt writes its own summary but does not replace
+`weekly-latest.json`, which continues to describe the latest run that acquired
+the process lock.
+
+**Run command.** `findjobs schedule run` also defaults to dry-run. Pass
+`--no-dry-run` to trigger the task immediately via
+`schtasks /run /tn FindJobsWeeklyWorkflow`. Scheduler failures produce
+exit code 1 with the error output shown.
 
 ## Development
 

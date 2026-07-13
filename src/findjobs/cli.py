@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Callable
@@ -29,6 +30,35 @@ def _validate_positive(value: float) -> float:
     if value <= 0:
         raise typer.BadParameter(f"must be positive, got {value}")
     return value
+
+
+_VALID_WEEKDAYS = frozenset({"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"})
+_TIME_RE = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d")
+
+
+def _validate_time_format(value: str) -> str:
+    """Validate and return a strict 24-hour HH:MM time string."""
+    if not _TIME_RE.fullmatch(value):
+        raise typer.BadParameter(f"must be a valid 24-hour HH:MM time, got '{value}'")
+    return value
+
+
+def _validate_weekday(value: str) -> str:
+    """Validate and normalize a weekday string to uppercase."""
+    upper = value.upper()
+    if upper not in _VALID_WEEKDAYS:
+        raise typer.BadParameter(
+            f"must be one of MON,TUE,WED,THU,FRI,SAT,SUN, got '{value}'"
+        )
+    return upper
+
+
+def _validate_task_name(value: str) -> str:
+    """Reject blank or whitespace-only task names."""
+    stripped = value.strip()
+    if not stripped:
+        raise typer.BadParameter("task name must not be blank")
+    return stripped
 
 
 def _shorten_error(value: str | None, limit: int = 80) -> str:
@@ -1301,9 +1331,21 @@ def install(
     task_name: str = typer.Option(
         "FindJobsWeeklyWorkflow",
         "--task-name",
+        callback=_validate_task_name,
         help="Windows Task Scheduler task name.",
     ),
-    time: str = typer.Option("09:00", "--time", help="Time to run (HH:MM) each week."),
+    time: str = typer.Option(
+        "09:00",
+        "--time",
+        callback=_validate_time_format,
+        help="Time to run (HH:MM) each week.",
+    ),
+    weekday: str = typer.Option(
+        "MON",
+        "--weekday",
+        callback=_validate_weekday,
+        help="Day of week (MON-SUN).",
+    ),
     db_path: str = typer.Option(
         None, "--db-path", help="Path to the SQLite database file."
     ),
@@ -1339,22 +1381,39 @@ def install(
         collect_cmd_str,
         "/sc",
         "weekly",
+        "/d",
+        weekday,
         "/st",
         time,
+        "/f",
+        "/it",
+        "/rl",
+        "LIMITED",
     ]
 
     if dry_run:
         typer.echo(subprocess.list2cmdline(cmd))
         return
 
-    import subprocess
     import sys
 
     if sys.platform != "win32":
         typer.echo("Schedule install is only supported on Windows.")
         raise typer.Exit(1)
 
-    subprocess.run(cmd, check=True)
+    completed = subprocess.run(
+        cmd,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    output = (completed.stdout or completed.stderr or "").strip()
+    if completed.returncode != 0:
+        typer.echo(f"Failed to install scheduled task '{task_name}'.")
+        if output:
+            typer.echo(output)
+        raise typer.Exit(1)
+
     typer.echo(f"Scheduled task '{task_name}' installed successfully.")
 
 
@@ -1363,6 +1422,7 @@ def schedule_status(
     task_name: str = typer.Option(
         "FindJobsWeeklyWorkflow",
         "--task-name",
+        callback=_validate_task_name,
         help="Windows Task Scheduler task name.",
     ),
     dry_run: bool = typer.Option(
@@ -1410,6 +1470,60 @@ def schedule_status(
         raise typer.Exit(1)
 
     typer.echo(output)
+
+
+@schedule_app.command("run")
+def schedule_run(
+    task_name: str = typer.Option(
+        "FindJobsWeeklyWorkflow",
+        "--task-name",
+        callback=_validate_task_name,
+        help="Windows Task Scheduler task name.",
+    ),
+    dry_run: bool = typer.Option(
+        True,
+        "--dry-run/--no-dry-run",
+        help="Print the command without executing it.",
+    ),
+):
+    """Run the scheduled task immediately via Windows Task Scheduler.
+
+    In dry-run mode (default) the ``schtasks`` command is printed but not
+    run.  Pass ``--no-dry-run`` to actually trigger the task (Windows only).
+    """
+    import subprocess
+
+    cmd = [
+        "schtasks",
+        "/run",
+        "/tn",
+        task_name,
+    ]
+
+    if dry_run:
+        typer.echo(subprocess.list2cmdline(cmd))
+        return
+
+    import sys
+
+    if sys.platform != "win32":
+        typer.echo("Schedule run is only supported on Windows.")
+        raise typer.Exit(1)
+
+    completed = subprocess.run(
+        cmd,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    output = (completed.stdout or completed.stderr or "").strip()
+    if completed.returncode != 0:
+        typer.echo(f"Failed to run scheduled task '{task_name}'.")
+        if output:
+            typer.echo(output)
+        raise typer.Exit(1)
+
+    typer.echo(f"Scheduled task '{task_name}' started successfully.")
 
 
 @app.command("relevance-audit")

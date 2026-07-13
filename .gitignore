@@ -19,6 +19,7 @@ profile/profile.json
 *.pdf
 
 # Generated reports (recreated each weekly run)
+reports/logs/
 reports/weekly/*.jsonl
 reports/weekly/*.csv
 reports/weekly/*.md

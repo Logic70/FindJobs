@@ -528,6 +528,12 @@ class TestScheduleInstall:
         assert "uv" in output
         assert "findjobs" in output
         assert "--live" in output
+        # New flags
+        assert "/d" in output or "/D" in output
+        assert "/f" in output or "/F" in output
+        assert "/it" in output or "/IT" in output
+        assert "/rl" in output or "/RL" in output
+        assert "LIMITED" in output
 
     def test_dry_run_default(self, cli_runner):
         """Default dry-run should print the schtasks command."""
@@ -536,8 +542,9 @@ class TestScheduleInstall:
         result = cli_runner.invoke(app, ["schedule", "install"])
         assert result.exit_code == 0
         self.assert_schedule_output(result.output)
-        # Default task name
+        # Default task name and weekday
         assert "FindJobsWeeklyWorkflow" in result.output
+        assert "MON" in result.output
         assert "'findjobs' 'weekly' '--live'" in result.output
 
     def test_dry_run_explicit(self, cli_runner):
@@ -547,10 +554,11 @@ class TestScheduleInstall:
         result = cli_runner.invoke(app, ["schedule", "install", "--dry-run"])
         assert result.exit_code == 0
         self.assert_schedule_output(result.output)
+        assert "MON" in result.output
         assert "'findjobs' 'weekly' '--live'" in result.output
 
     def test_dry_run_with_custom_options(self, cli_runner):
-        """Custom task name, time, and db-path should appear in the output."""
+        """Custom task name, time, weekday, and db-path should appear."""
         from findjobs.cli import app
 
         custom_db = "C:\\data\\findjobs.db"
@@ -563,6 +571,8 @@ class TestScheduleInstall:
                 "MyCollector",
                 "--time",
                 "14:30",
+                "--weekday",
+                "fri",
                 "--db-path",
                 custom_db,
                 "--dry-run",
@@ -571,6 +581,7 @@ class TestScheduleInstall:
         assert result.exit_code == 0
         assert "MyCollector" in result.output
         assert "14:30" in result.output
+        assert "FRI" in result.output
         assert custom_db in result.output
         self.assert_schedule_output(result.output, has_db_path=True)
         assert "'findjobs' 'weekly' '--live'" in result.output
@@ -583,8 +594,99 @@ class TestScheduleInstall:
         assert result.exit_code == 0
         assert "--task-name" in result.output
         assert "--time" in result.output
+        assert "--weekday" in result.output
         assert "--db-path" in result.output
         assert "--dry-run" in result.output
+        assert "--collect-only" in result.output
+
+    def test_invalid_time_rejected(self, cli_runner):
+        """Invalid --time value is rejected."""
+        from findjobs.cli import app
+
+        result = cli_runner.invoke(app, ["schedule", "install", "--time", "25:00"])
+        assert result.exit_code != 0
+
+        result2 = cli_runner.invoke(app, ["schedule", "install", "--time", "abc"])
+        assert result2.exit_code != 0
+
+        result3 = cli_runner.invoke(
+            app, ["schedule", "install", "--time", "09:00\n"]
+        )
+        assert result3.exit_code != 0
+
+    def test_invalid_weekday_rejected(self, cli_runner):
+        """Invalid --weekday value is rejected."""
+        from findjobs.cli import app
+
+        result = cli_runner.invoke(app, ["schedule", "install", "--weekday", "XYZ"])
+        assert result.exit_code != 0
+
+    def test_blank_task_name_rejected(self, cli_runner):
+        """Blank --task-name is rejected."""
+        from findjobs.cli import app
+
+        result = cli_runner.invoke(app, ["schedule", "install", "--task-name", ""])
+        assert result.exit_code != 0
+
+    def test_weekday_case_insensitive(self, cli_runner):
+        """--weekday is case-insensitive, output shows uppercase."""
+        from findjobs.cli import app
+
+        result = cli_runner.invoke(app, ["schedule", "install", "--weekday", "wed"])
+        assert result.exit_code == 0
+        assert "WED" in result.output
+
+        result2 = cli_runner.invoke(app, ["schedule", "install", "--weekday", "Wed"])
+        assert result2.exit_code == 0
+        assert "WED" in result2.output
+
+    def test_install_windows_success(self, cli_runner, monkeypatch):
+        """Real install invokes schtasks and reports success."""
+        import subprocess
+        import sys
+
+        from findjobs.cli import app
+
+        captured = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            captured["kwargs"] = kwargs
+            return subprocess.CompletedProcess(cmd, 0, stdout="SUCCESS\n", stderr="")
+
+        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        result = cli_runner.invoke(app, ["schedule", "install", "--no-dry-run"])
+
+        assert result.exit_code == 0
+        assert captured["cmd"][:2] == ["schtasks", "/create"]
+        assert captured["kwargs"]["check"] is False
+        assert captured["kwargs"]["capture_output"] is True
+        assert "installed successfully" in result.output
+
+    def test_install_windows_failure_shows_scheduler_output(
+        self, cli_runner, monkeypatch
+    ):
+        """Scheduler registration errors become a useful exit-1 result."""
+        import subprocess
+        import sys
+
+        from findjobs.cli import app
+
+        def fake_run(cmd, **kwargs):
+            return subprocess.CompletedProcess(
+                cmd, 1, stdout="", stderr="ERROR: registration denied\n"
+            )
+
+        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        result = cli_runner.invoke(app, ["schedule", "install", "--no-dry-run"])
+
+        assert result.exit_code == 1
+        assert "Failed to install" in result.output
+        assert "registration denied" in result.output
 
     def test_status_dry_run_prints_query_command(self, cli_runner):
         """schedule status --dry-run should print the schtasks query command."""
@@ -619,6 +721,119 @@ class TestScheduleInstall:
 
         assert result.exit_code == 0
         assert "Status: Ready" in result.output
+
+    def test_status_blank_task_name_rejected(self, cli_runner):
+        """Status validates task names before invoking schtasks."""
+        from findjobs.cli import app
+
+        result = cli_runner.invoke(
+            app, ["schedule", "status", "--task-name", " ", "--dry-run"]
+        )
+
+        assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# CLI: schedule run
+# ---------------------------------------------------------------------------
+
+
+class TestScheduleRun:
+    """schedule run -- dry-run, Windows-only, success/failure."""
+
+    def assert_run_output(self, output: str):
+        """Assert common schtasks run command characteristics."""
+        assert "schtasks" in output
+        assert "/run" in output
+        assert "/tn" in output
+        assert "FindJobsWeeklyWorkflow" in output
+
+    def test_run_dry_run_default(self, cli_runner):
+        """Default dry-run should print the schtasks run command."""
+        from findjobs.cli import app
+
+        result = cli_runner.invoke(app, ["schedule", "run"])
+        assert result.exit_code == 0
+        self.assert_run_output(result.output)
+
+    def test_run_dry_run_explicit(self, cli_runner):
+        """--dry-run should print the command without executing it."""
+        from findjobs.cli import app
+
+        result = cli_runner.invoke(app, ["schedule", "run", "--dry-run"])
+        assert result.exit_code == 0
+        self.assert_run_output(result.output)
+
+    def test_run_non_windows_rejected(self, cli_runner, monkeypatch):
+        """--no-dry-run on non-Windows is rejected."""
+        import sys
+
+        from findjobs.cli import app
+
+        monkeypatch.setattr(sys, "platform", "linux")
+        result = cli_runner.invoke(app, ["schedule", "run", "--no-dry-run"])
+        assert result.exit_code != 0
+        assert "only supported on Windows" in result.output
+
+    def test_run_windows_success(self, cli_runner, monkeypatch):
+        """--no-dry-run on Windows invokes the task and reports success."""
+        import subprocess
+        import sys
+
+        from findjobs.cli import app
+
+        def fake_run(*args, **kwargs):
+            return subprocess.CompletedProcess(
+                args=args[0],
+                returncode=0,
+                stdout="Success: The scheduled task is running.\n",
+                stderr="",
+            )
+
+        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        result = cli_runner.invoke(app, ["schedule", "run", "--no-dry-run"])
+        assert result.exit_code == 0
+        assert "started successfully" in result.output
+
+    def test_run_windows_failure(self, cli_runner, monkeypatch):
+        """--no-dry-run on Windows that fails produces exit code 1."""
+        import subprocess
+        import sys
+
+        from findjobs.cli import app
+
+        def fake_run_fail(*args, **kwargs):
+            return subprocess.CompletedProcess(
+                args=args[0],
+                returncode=1,
+                stdout="",
+                stderr="ERROR: The specified task could not be found.\n",
+            )
+
+        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.setattr(subprocess, "run", fake_run_fail)
+
+        result = cli_runner.invoke(app, ["schedule", "run", "--no-dry-run"])
+        assert result.exit_code != 0
+        assert "Failed to run" in result.output
+        assert "specified task could not be found" in result.output
+
+    def test_run_custom_task_name(self, cli_runner):
+        """Custom --task-name appears in dry-run output."""
+        from findjobs.cli import app
+
+        result = cli_runner.invoke(app, ["schedule", "run", "--task-name", "MyTask"])
+        assert result.exit_code == 0
+        assert "MyTask" in result.output
+
+    def test_run_blank_task_name_rejected(self, cli_runner):
+        """Blank --task-name is rejected."""
+        from findjobs.cli import app
+
+        result = cli_runner.invoke(app, ["schedule", "run", "--task-name", ""])
+        assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
