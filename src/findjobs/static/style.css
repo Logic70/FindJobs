@@ -66,3 +66,121 @@ td:last-child { white-space: normal; }
 
 /* Empty state */
 .empty { color: #888; font-style: italic; }
+
+/* Recommendations: unframed summary band */
+.rec-summary {
+    display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+    margin-bottom: 12px; font-size: 13px; padding: 8px 0;
+    background: transparent; border: none;
+}
+.rec-summary-stat { white-space: nowrap; }
+.rec-exclusions { font-size: 13px; color: #666; }
+.rec-exclusion-list { margin: 4px 0; padding-left: 16px; }
+.rec-exclusion-key { font-family: monospace; font-size: 12px; }
+
+.rec-aggregate-advice {
+    background: #f0f7ff; border: 1px solid #cce5ff; border-radius: 4px;
+    padding: 8px 12px; margin-bottom: 12px; font-size: 13px;
+}
+
+/* Recommendation card */
+.rec-card {
+    background: #fff; border: 1px solid #ddd; border-radius: 6px;
+    margin-bottom: 10px; overflow: hidden;
+}
+.rec-card-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; background: #f9f9f9;
+    border-bottom: 1px solid #eee; font-size: 13px;
+}
+.rec-rank { font-weight: 600; color: #555; min-width: 32px; }
+.rec-total-score { font-weight: 700; color: #06c; min-width: 36px; }
+.rec-tier {
+    font-size: 11px; padding: 1px 5px; border-radius: 3px;
+    text-transform: uppercase; min-width: 70px; text-align: center;
+}
+.rec-tier-high { background: #e6f7e6; color: #2a7d2a; }
+.rec-tier-medium { background: #fff7e6; color: #b87a00; }
+.rec-tier-exploratory { background: #f5f5f5; color: #888; }
+
+.rec-card-body { padding: 8px 10px; font-size: 13px; }
+.rec-company { font-weight: 600; color: #333; }
+.rec-title { font-size: 15px; font-weight: 700; margin: 2px 0; }
+
+.rec-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 4px 0; font-size: 12px; color: #555; }
+.rec-location { white-space: normal; }
+.rec-job-type { white-space: nowrap; }
+.rec-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+.rec-tag { background: #eef; color: #44c; padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+
+.rec-links { margin: 4px 0; display: flex; gap: 10px; font-size: 13px; }
+.rec-links a { color: #06c; text-decoration: none; }
+.rec-links a:hover { text-decoration: underline; }
+
+.rec-salary { margin: 2px 0; font-size: 13px; color: #333; }
+.rec-completeness { font-size: 12px; color: #777; margin: 2px 0; }
+
+/* Score details table — container scrolls when table exceeds available width */
+.rec-scores { margin: 4px 0; }
+.rec-scores-scroll { overflow-x: auto; }
+.rec-score-table { font-size: 12px; min-width: 820px; width: auto; }
+.rec-score-table th { font-weight: 600; background: #f5f5f5; padding: 2px 6px; }
+.rec-score-table td { padding: 2px 6px; white-space: normal; }
+.rec-evidence { margin-top: 4px; font-size: 12px; }
+.rec-evidence ul { margin: 2px 0; padding-left: 16px; }
+
+.rec-matched-skills { margin: 4px 0; font-size: 12px; }
+.rec-skill-badge {
+    display: inline-block; background: #e6ffe6; color: #2a7d2a;
+    padding: 1px 6px; border-radius: 3px; font-size: 11px; margin: 1px;
+}
+
+.rec-gaps { margin: 4px 0; font-size: 12px; color: #a66; }
+.rec-gaps ul { margin: 2px 0; padding-left: 16px; }
+
+.rec-advice { margin: 4px 0; font-size: 12px; color: #444; }
+
+/* Native details for responsibilities / requirements */
+.rec-details { margin: 2px 0; font-size: 12px; }
+.rec-details summary { cursor: pointer; color: #06c; }
+.rec-detail-text {
+    background: #fafafa; border: 1px solid #eee; border-radius: 3px;
+    padding: 6px 8px; font-size: 12px; white-space: pre-wrap;
+    max-height: 200px; overflow-y: auto; margin: 4px 0 0;
+}
+
+/* Card actions area */
+.rec-card-actions {
+    padding: 6px 10px; border-top: 1px solid #eee;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 32px;
+}
+.rec-card-actions .mark-form select { min-width: 72px; }
+.rec-card-actions .mark-form button { min-width: 48px; }
+.rec-current-marks { display: flex; flex-wrap: wrap; gap: 4px; font-size: 12px; }
+.rec-mark {
+    padding: 1px 6px; border-radius: 3px; font-size: 11px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;
+}
+.rec-mark-bookmark { background: #eef; color: #44c; }
+.rec-mark-applied { background: #e6ffe6; color: #2a7d2a; }
+.rec-mark-ignored { background: #eee; color: #888; }
+
+/* Responsive: <=760px switch to one-column */
+@media (max-width: 760px) {
+    .rec-meta { flex-direction: column; gap: 2px; }
+    .rec-links { flex-direction: column; gap: 4px; }
+    .rec-card-actions { flex-direction: column; align-items: flex-start; }
+    .rec-current-marks { flex-direction: column; }
+    .rec-title, .rec-location, .rec-tags, .rec-skill-badge,
+    .rec-gaps ul li, .rec-links a, .rec-links .rec-url-unsafe, .rec-advice {
+        overflow-wrap: anywhere; white-space: normal;
+    }
+}
+
+/* Wrapping/overflow rules — allow long text to wrap everywhere */
+.rec-title, .rec-location, .rec-tags, .rec-skill-badge, .rec-gaps ul li,
+.rec-links a, .rec-links .rec-url-unsafe, .rec-advice {
+    overflow-wrap: anywhere; word-wrap: break-word; white-space: normal;
+    max-width: 100%;
+}
+.rec-url-unsafe { color: #999; font-size: 12px; word-break: break-all; }

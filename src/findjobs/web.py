@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import RedirectResponse
@@ -17,6 +19,8 @@ from sqlalchemy.pool import NullPool
 from findjobs.job_types import job_type_matches, split_job_types
 from findjobs.locations import location_matches, split_locations
 from findjobs.models import CollectRun, Company, Job, Source, UserMark
+from findjobs.recommendation import recommend_from_session
+from findjobs.recommendation_profile import load_recommendation_profile
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -24,6 +28,60 @@ _STATIC_DIR = Path(__file__).parent / "static"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 VALID_MARK_TYPES = frozenset({"bookmark", "ignored", "applied"})
+
+# Chinese labels for tier values shown in the recommendations UI.
+_TIER_LABELS = {
+    "high": "高匹配",
+    "medium": "中匹配",
+    "exploratory": "低匹配",
+}
+
+# Chinese labels for hard-exclusion reasons shown in the recommendations UI.
+_EXCLUSION_LABELS = {
+    "non_active_status": "非活跃状态",
+    "non_target_relevance": "非目标相关",
+    "unsupported_tags": "不支持的标签",
+    "algorithm_rejection": "算法类职位",
+    "huawei_exclusion": "华为排除",
+    "profile_excluded_company": "个人资料排除公司",
+    "missing_url": "缺少链接",
+}
+
+# Only allow redirects to /recommendations with an optional safe query string.
+_SAFE_REDIRECT_RE = re.compile(r"^/recommendations(\?[a-zA-Z0-9_=&.\-]*)?$")
+
+
+def _is_safe_redirect(url: str) -> bool:
+    """Return True when *url* is a safe local redirect to ``/recommendations``.
+
+    Rejects external URLs, scheme-relative URLs, and CR/LF injection.
+    """
+    if not url:
+        return False
+    # Block HTTP response splitting
+    if "\r" in url or "\n" in url:
+        return False
+    return bool(_SAFE_REDIRECT_RE.match(url))
+
+
+def is_safe_url(url: str) -> bool:
+    """Return True when *url* is a safe http/https URL with nonempty netloc.
+
+    Does not strip whitespace or normalise the stored value;
+    whitespace-surrounded URLs are treated as unsafe.
+    """
+    if not url:
+        return False
+    if "\r" in url or "\n" in url:
+        return False
+    # Whitespace-surrounded URLs are not safe.
+    if url != url.strip():
+        return False
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    except (ValueError, TypeError):
+        return False
 
 
 def _parse_tags(matched_tags: str | None) -> list[str]:
@@ -53,6 +111,7 @@ def _format_dt(dt) -> str:
 templates.env.globals["parse_tags"] = _parse_tags
 templates.env.globals["marks_summary"] = _marks_summary
 templates.env.globals["fmt_dt"] = _format_dt
+templates.env.globals["is_safe_url"] = is_safe_url
 
 
 def _get_filter_options(session: Session) -> dict:
@@ -105,12 +164,15 @@ def _get_filter_options(session: Session) -> dict:
     }
 
 
-def create_app(db_path: str | Path | None = None) -> FastAPI:
+def create_app(db_path: str | Path | None = None,
+               profile_path: str | Path | None = None) -> FastAPI:
     """Create and configure the FastAPI application.
 
     Args:
         db_path: Path to the SQLite database file. When ``None`` the default
                  path from :func:`findjobs.paths.get_default_db_path` is used.
+        profile_path: Path to the recommendation profile file.  When ``None``
+                      the default ``<project_root>/profile/profile.md`` is used.
 
     Returns:
         A configured :class:`FastAPI` instance ready to serve.
@@ -123,6 +185,12 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     db_path = Path(db_path)
     engine = create_engine(f"sqlite:///{db_path}", echo=False, poolclass=NullPool)
     SessionLocal = sessionmaker(bind=engine)
+
+    if profile_path is None:
+        from findjobs.paths import get_project_root
+
+        profile_path = get_project_root() / "profile" / "profile.md"
+    resolved_profile = Path(profile_path)
 
     app = FastAPI(title="FindJobs")
 
@@ -137,6 +205,64 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
 
     def _db() -> Session:
         return SessionLocal()
+
+    def _load_profile():
+        """Load recommendation profile, raising on missing/invalid."""
+        return load_recommendation_profile(resolved_profile)
+
+    # ---- GET /recommendations ----
+
+    @app.get("/recommendations")
+    def recommendations(
+        request: Request,
+        limit: int = Query(50, ge=1, le=100),
+    ):
+        session = _db()
+        try:
+            try:
+                profile = _load_profile()
+            except FileNotFoundError:
+                return templates.TemplateResponse(
+                    request,
+                    "recommendations.html",
+                    {"error_empty": "未找到个人资料文件，请先创建个人资料。"},
+                )
+            except ValueError:
+                return templates.TemplateResponse(
+                    request,
+                    "recommendations.html",
+                    {"error_empty": "个人资料格式无效，请检查后重试。"},
+                )
+
+            result = recommend_from_session(session, profile, limit=limit)
+
+            # Eagerly materialise UserMark summaries for returned job IDs
+            job_ids = [r.job_id for r in result.recommendations]
+            marks_lookup: dict[int, tuple[tuple[str, str], ...]] = {}
+            if job_ids:
+                rows = (
+                    session.query(UserMark)
+                    .filter(UserMark.job_id.in_(job_ids))
+                    .order_by(UserMark.mark_type)
+                    .all()
+                )
+                tmp: dict[int, list[tuple[str, str]]] = {}
+                for m in rows:
+                    tmp.setdefault(m.job_id, []).append((m.mark_type, m.note))
+                marks_lookup = {k: tuple(v) for k, v in tmp.items()}
+
+            return templates.TemplateResponse(
+                request,
+                "recommendations.html",
+                {
+                    "result": result,
+                    "marks": marks_lookup,
+                    "tier_labels": _TIER_LABELS,
+                    "exclusion_labels": _EXCLUSION_LABELS,
+                },
+            )
+        finally:
+            session.close()
 
     # ---- GET / ----
 
@@ -251,6 +377,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         job_id: int,
         mark_type: str = Form(...),
         note: str = Form(""),
+        next_url: str = Form(""),
     ):
         if mark_type not in VALID_MARK_TYPES:
             from fastapi.responses import HTMLResponse
@@ -282,6 +409,9 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
                 session.add(mark)
 
             session.commit()
+
+            if _is_safe_redirect(next_url):
+                return RedirectResponse(url=next_url, status_code=303)
             return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
         finally:
             session.close()

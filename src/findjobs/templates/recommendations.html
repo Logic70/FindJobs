@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}职位推荐{% endblock %}
+{% block body %}
+
+{% if error_empty %}
+<div class="empty">{{ error_empty }}</div>
+{% else %}
+
+{# ---- Summary band ---- #}
+<div class="rec-summary">
+  <span class="rec-summary-stat">扫描 <strong>{{ result.scanned }}</strong></span>
+  <span class="rec-summary-stat">合格 <strong>{{ result.eligible }}</strong></span>
+  <span class="rec-summary-stat">推荐 <strong>{{ result.recommendations|length }}</strong></span>
+  {% set ns = namespace(has_exclusions=false) %}
+  {% for key, count in result.hard_exclusion_counts.items() %}
+    {% if count > 0 %}{% set ns.has_exclusions = true %}{% endif %}
+  {% endfor %}
+  {% if ns.has_exclusions %}
+  <details class="rec-exclusions">
+    <summary>排除明细 ({{ result.scanned - result.eligible }})</summary>
+    <ul class="rec-exclusion-list">
+      {% for key, count in result.hard_exclusion_counts.items() %}
+        {% if count > 0 %}
+        <li><span class="rec-exclusion-key">{{ exclusion_labels.get(key, key) }}</span>: {{ count }}</li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</div>
+
+{% if result.aggregate_learning_advice %}
+<div class="rec-aggregate-advice">{{ result.aggregate_learning_advice }}</div>
+{% endif %}
+
+{# ---- Recommendation cards ---- #}
+{% if result.recommendations %}
+  {% for rec in result.recommendations %}
+  <div class="rec-card">
+    {# Header row: rank, score, tier (raw value only in CSS class) #}
+    <div class="rec-card-header">
+      <span class="rec-rank">#{{ loop.index }}</span>
+      <span class="rec-total-score">{{ rec.total_score }}</span>
+      <span class="rec-tier rec-tier-{{ rec.tier }}">{{ tier_labels.get(rec.tier, rec.tier) }}</span>
+    </div>
+
+    {# Body #}
+    <div class="rec-card-body">
+      <div class="rec-company">{{ rec.company_name }}</div>
+      <div class="rec-title">{{ rec.title }}</div>
+
+      <div class="rec-meta">
+        {% if rec.location %}
+        <span class="rec-location">{{ rec.location }}</span>
+        {% endif %}
+        {% if rec.job_type %}
+        <span class="rec-job-type">{{ rec.job_type }}</span>
+        {% endif %}
+        {% if rec.tags %}
+        <span class="rec-tags">
+          {% for tag in rec.tags %}
+          <span class="rec-tag">{{ tag }}</span>
+          {% endfor %}
+        </span>
+        {% endif %}
+      </div>
+
+      <div class="rec-links">
+        {% if is_safe_url(rec.url) %}
+        <a href="{{ rec.url }}" rel="noopener" target="_blank">官方链接</a>
+        {% else %}
+        <span class="rec-url-unsafe">{{ rec.url }}</span>
+        {% endif %}
+        <a href="/jobs/{{ rec.job_id }}">详情</a>
+      </div>
+
+      <div class="rec-salary">
+        {% if rec.salary_disclosed %}
+          {{ rec.salary_text }}
+          {% if rec.salary_min is not none and rec.salary_max is not none %}
+            ({{ rec.salary_min }}-{{ rec.salary_max }} {{ rec.salary_currency }}/{{ rec.salary_period }})
+          {% endif %}
+        {% else %}
+          未披露
+        {% endif %}
+      </div>
+
+      <div class="rec-completeness">完整度: {{ rec.detail_completeness }}</div>
+
+      {# Component scores — full evidence + message for all 5 dimensions #}
+      <details class="rec-scores">
+        <summary>评分明细</summary>
+        <div class="rec-scores-scroll">
+        <table class="rec-score-table">
+          <tr>
+            <th>维度</th><th>得分</th><th>说明</th><th>匹配来源</th><th>个人资料来源</th><th>匹配项</th><th>差距项</th>
+          </tr>
+          <tr>
+            <td>领域</td>
+            <td>{{ rec.domain.score }}/{{ rec.domain.max_score }}</td>
+            <td>{{ rec.domain.message }}</td>
+            <td>{{ rec.domain.source_fields|join(', ') or '-' }}</td>
+            <td>{{ rec.domain.profile_fields|join(', ') or '-' }}</td>
+            <td>{{ rec.domain.matched_terms|join(', ') or '-' }}</td>
+            <td>{{ rec.domain.gap_terms|join(', ') or '-' }}</td>
+          </tr>
+          <tr>
+            <td>技能</td>
+            <td>{{ rec.skills.score }}/{{ rec.skills.max_score }}</td>
+            <td>{{ rec.skills.message }}</td>
+            <td>{{ rec.skills.source_fields|join(', ') or '-' }}</td>
+            <td>{{ rec.skills.profile_fields|join(', ') or '-' }}</td>
+            <td>{{ rec.skills.matched_terms|join(', ') or '-' }}</td>
+            <td>{{ rec.skills.gap_terms|join(', ') or '-' }}</td>
+          </tr>
+          <tr>
+            <td>需求</td>
+            <td>{{ rec.requirements_score.score }}/{{ rec.requirements_score.max_score }}</td>
+            <td>{{ rec.requirements_score.message }}</td>
+            <td>{{ rec.requirements_score.source_fields|join(', ') or '-' }}</td>
+            <td>{{ rec.requirements_score.profile_fields|join(', ') or '-' }}</td>
+            <td>{{ rec.requirements_score.matched_terms|join(', ') or '-' }}</td>
+            <td>{{ rec.requirements_score.gap_terms|join(', ') or '-' }}</td>
+          </tr>
+          <tr>
+            <td>经验</td>
+            <td>{{ rec.experience.score }}/{{ rec.experience.max_score }}</td>
+            <td>{{ rec.experience.message }}</td>
+            <td>{{ rec.experience.source_fields|join(', ') or '-' }}</td>
+            <td>{{ rec.experience.profile_fields|join(', ') or '-' }}</td>
+            <td>{{ rec.experience.matched_terms|join(', ') or '-' }}</td>
+            <td>{{ rec.experience.gap_terms|join(', ') or '-' }}</td>
+          </tr>
+          <tr>
+            <td>位置</td>
+            <td>{{ rec.location_score.score }}/{{ rec.location_score.max_score }}</td>
+            <td>{{ rec.location_score.message }}</td>
+            <td>{{ rec.location_score.source_fields|join(', ') or '-' }}</td>
+            <td>{{ rec.location_score.profile_fields|join(', ') or '-' }}</td>
+            <td>{{ rec.location_score.matched_terms|join(', ') or '-' }}</td>
+            <td>{{ rec.location_score.gap_terms|join(', ') or '-' }}</td>
+          </tr>
+        </table>
+        </div>
+      </details>
+
+      {# Matched skills #}
+      {% if rec.matched_skills %}
+      <div class="rec-matched-skills">
+        <strong>匹配技能:</strong>
+        {% for skill in rec.matched_skills %}
+        <span class="rec-skill-badge">{{ skill }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {# Gaps #}
+      {% if rec.gaps %}
+      <div class="rec-gaps">
+        <strong>差距:</strong>
+        <ul>
+          {% for gap in rec.gaps %}
+          <li>{{ gap }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {# Application advice #}
+      {% if rec.application_advice %}
+      <div class="rec-advice">{{ rec.application_advice }}</div>
+      {% endif %}
+
+      {# Responsibilities — always shown #}
+      <details class="rec-details">
+        <summary>职责</summary>
+        <pre class="rec-detail-text">{% if rec.responsibilities %}{{ rec.responsibilities }}{% else %}未采集到岗位职责{% endif %}</pre>
+      </details>
+
+      {# Requirements — always shown #}
+      <details class="rec-details">
+        <summary>要求</summary>
+        <pre class="rec-detail-text">{% if rec.requirements %}{{ rec.requirements }}{% else %}未采集到岗位要求{% endif %}</pre>
+      </details>
+    </div>
+
+    {# Actions: current marks + mark form #}
+    <div class="rec-card-actions">
+      {% set job_marks = marks.get(rec.job_id, []) %}
+      {% if job_marks %}
+      <div class="rec-current-marks">
+        {% for mark_type, note in job_marks %}
+        <span class="rec-mark rec-mark-{{ mark_type }}">{{ mark_type }}{% if note %}: {{ note }}{% endif %}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <form class="mark-form" action="/jobs/{{ rec.job_id }}/marks" method="post">
+        <input type="hidden" name="next_url" value="/recommendations">
+        <select name="mark_type" aria-label="标记类型">
+          <option value="bookmark">收藏</option>
+          <option value="applied">已申请</option>
+          <option value="ignored">忽略</option>
+        </select>
+        <input type="text" name="note" placeholder="备注" aria-label="备注">
+        <button type="submit">标记</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="empty">暂无推荐结果。当前无符合个人资料条件的职位。</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
