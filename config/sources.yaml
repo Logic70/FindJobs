@@ -123,6 +123,24 @@ companies:
     homepage_url: https://modelbest.cn
     careers_url: https://modelbest.jobs.feishu.cn
 
+  - slug: chaitin
+    name: Chaitin
+    description: Chaitin Tech / 长亭科技
+    homepage_url: https://www.chaitin.cn
+    careers_url: https://join.chaitin.cn/plugins/career_site/sites/default
+
+  - slug: sangfor
+    name: Sangfor
+    description: Sangfor Technologies / 深信服
+    homepage_url: https://www.sangfor.com.cn
+    careers_url: https://hr.sangfor.com/Sociology
+
+  - slug: qianxin
+    name: Qianxin
+    description: Qianxin Technology / 奇安信
+    homepage_url: https://www.qianxin.com
+    careers_url: https://www.hotjob.cn/wt/qianxin/web/index#/
+
 sources:
   - slug: tencent-careers
     name: Tencent Official Careers
@@ -361,5 +379,35 @@ sources:
     base_url: https://modelbest.jobs.feishu.cn
     fetch_url: ""
     adapter: feishu_official
+    is_active: true
+    collection_completeness: complete_for_target_scope
+
+  - slug: chaitin-careers
+    name: Chaitin Official Careers
+    company_slug: chaitin
+    source_type: official_careers
+    base_url: https://join.chaitin.cn/plugins/career_site/sites/default
+    fetch_url: https://join.chaitin.cn/plugins/career_site/api/default/jobs
+    adapter: chaitin_official
+    is_active: true
+    collection_completeness: complete_for_target_scope
+
+  - slug: sangfor-careers
+    name: Sangfor Official Careers
+    company_slug: sangfor
+    source_type: official_careers
+    base_url: https://hr.sangfor.com/Sociology
+    fetch_url: https://hr.sangfor.com/webapi/api/Jobs
+    adapter: sangfor_official
+    is_active: true
+    collection_completeness: complete_for_target_scope
+
+  - slug: qianxin-careers
+    name: Qianxin Official Careers
+    company_slug: qianxin
+    source_type: official_careers
+    base_url: https://www.hotjob.cn/wt/qianxin/web/index
+    fetch_url: https://www.hotjob.cn/wt/qianxin/web/mode400/position/list
+    adapter: qianxin_official
     is_active: true
     collection_completeness: complete_for_target_scope

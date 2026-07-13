@@ -1,0 +1,89 @@
+{
+  "code": 0,
+  "data": {
+    "total_count": 5,
+    "has_next_page": false,
+    "items": [
+      {
+        "job_id": "chaitin-ai-security-001",
+        "title": "AI安全研究员",
+        "department": "安全研究部",
+        "job_category_name": "技术",
+        "location": "北京",
+        "work_type": "full_time",
+        "recruitment_type": "social",
+        "description": "【岗位职责】\n1、负责AI安全前沿技术研究，包括大模型安全、AI应用安全等方向\n2、参与AI安全平台架构设计与开发\n3、跟踪国内外AI安全最新动态，输出安全研究报告\n\n【任职要求】\n1、本科及以上学历，计算机、信息安全等相关专业\n2、3年以上网络安全或AI安全相关工作经验\n3、熟悉常见安全漏洞原理及攻防技术\n4、具备良好的编程能力，熟悉Python/C++",
+        "salary_min": 30000,
+        "salary_max": 50000,
+        "salary_months": 15,
+        "tracking_code": "TRACK-AI-001",
+        "career_site_published_at": 1780272000,
+        "updated_at": 1781481600
+      },
+      {
+        "job_id": "chaitin-pentest-002",
+        "title": "安全渗透测试工程师",
+        "department": "安全服务部",
+        "job_category_name": "研发类",
+        "location": "北京、上海",
+        "work_type": "full_time",
+        "recruitment_type": "social",
+        "description": "岗位职责：\n1、负责对客户业务系统进行渗透测试和安全评估\n2、编写渗透测试报告，提供安全修复建议\n3、参与红蓝对抗演练\n\n任职要求：\n1、熟悉Web安全、网络安全的常见攻防技术\n2、熟练使用Burp Suite、Nmap、Metasploit等安全工具\n3、具备CTF比赛经验者优先\n4、具有良好的沟通表达能力",
+        "salary_min": 20000,
+        "salary_max": 40000,
+        "salary_months": 14,
+        "tracking_code": "TRACK-PEN-002",
+        "career_site_published_at": 1779235200,
+        "updated_at": 1781049600
+      },
+      {
+        "job_id": "chaitin-algo-003",
+        "title": "算法工程师",
+        "department": "AI研发部",
+        "category": "研发",
+        "location": "北京",
+        "work_type": "full_time",
+        "recruitment_type": "social",
+        "description": "岗位职责：\n1、负责推荐算法和搜索算法的研发与优化\n2、构建大规模机器学习系统\n3、优化模型性能\n\n任职要求：\n1、计算机、数学等相关专业硕士及以上学历\n2、熟悉常用机器学习算法和深度学习框架\n3、有相关论文发表者优先",
+        "salary_min": null,
+        "salary_max": null,
+        "salary_months": null,
+        "tracking_code": "TRACK-ALGO-003",
+        "career_site_published_at": 1776211200,
+        "updated_at": 1780272000
+      },
+      {
+        "job_id": "chaitin-pm-004",
+        "title": "产品经理",
+        "department": "产品部",
+        "job_category_name": "产品",
+        "location": "北京",
+        "work_type": "full_time",
+        "recruitment_type": "social",
+        "description": "岗位职责：\n1、负责安全产品需求分析和产品规划\n2、撰写产品需求文档\n3、协调研发团队推进产品交付\n\n任职要求：\n1、本科及以上学历\n2、3年以上产品经理工作经验\n3、有安全产品经验者优先",
+        "salary_min": null,
+        "salary_max": null,
+        "salary_months": null,
+        "tracking_code": "TRACK-PM-004",
+        "career_site_published_at": 1773100800,
+        "updated_at": 1779235200
+      },
+      {
+        "job_id": "chaitin-sec-engineer-005",
+        "title": "安全开发工程师",
+        "department": "安全研发部",
+        "job_category_name": "技术",
+        "location": "北京",
+        "work_type": "internship",
+        "recruitment_type": "campus",
+        "description": "岗位职责: 负责安全产品研发和安全平台建设。\n任职要求: 熟悉Python、Go，有安全产品开发经验。",
+        "salary_min": 25000,
+        "salary_max": 45000,
+        "salary_months": null,
+        "tracking_code": "TRACK-SEC-005",
+        "career_site_published_at": 1781049600,
+        "updated_at": 1781913600
+      }
+    ]
+  }
+}

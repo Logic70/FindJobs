@@ -1726,6 +1726,9 @@ class TestSourcesConfig:
             "modelbest-feishu",
             "sensetime-careers",
             "iflytek-careers",
+            "chaitin-careers",
+            "sangfor-careers",
+            "qianxin-careers",
         }
         for s in config.sources:
             if s.slug in active_slugs:

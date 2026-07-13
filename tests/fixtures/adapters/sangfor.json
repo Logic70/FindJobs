@@ -1,0 +1,87 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "count": 6,
+    "listData": [
+      {
+        "positionId": 1001,
+        "title": "AI安全平台工程师",
+        "positionState": 1,
+        "workPlaceText": "深圳",
+        "functionName": "研发",
+        "departmentName": "AI安全平台部",
+        "commitment": "全职",
+        "description": "<div><p><strong>岗位职责：</strong></p><ul><li>负责AI安全平台的设计、开发和维护</li><li>参与安全AI模型的训练与部署</li><li>跟踪AI安全前沿技术，推动安全智能化</li></ul><p><strong>任职要求：</strong></p><ul><li>本科及以上学历，计算机、网络安全相关专业</li><li>5年以上安全开发经验，2年以上AI安全经验</li><li>熟悉机器学习框架，了解LLM安全</li><li>具备良好的团队协作能力</li></ul></div>",
+        "minSalary": 30000,
+        "maxSalary": 60000,
+        "openedAt": "2026-03-15"
+      },
+      {
+        "positionId": 1002,
+        "title": "高级安全工程师",
+        "positionState": 1,
+        "workPlaceText": "北京、深圳",
+        "functionName": "安全服务",
+        "departmentName": "安全运营部",
+        "commitment": "全职",
+        "description": "<div><p><strong>岗位职责：</strong></p><ul><li>负责公司安全产品的技术支持与交付</li><li>参与安全攻防演练和渗透测试</li><li>编写安全解决方案</li></ul><p><strong>任职要求：</strong></p><ul><li>本科及以上学历，信息安全相关专业</li><li>3年以上安全领域工作经验</li><li>熟悉渗透测试流程和常见漏洞原理</li><li>持有CISP或CISSP证书优先</li></ul></div>",
+        "minSalary": 0,
+        "maxSalary": 0,
+        "openedAt": "2026-04-20"
+      },
+      {
+        "positionId": 1003,
+        "title": "AI安全算法工程师",
+        "positionState": 1,
+        "workPlaceText": "北京",
+        "functionName": "算法",
+        "departmentName": "AI研究院",
+        "commitment": "全职",
+        "description": "<div><p><strong>岗位职责：</strong></p><ul><li>负责安全AI算法的研发和优化</li><li>设计和实现网络流量分析算法</li><li>构建安全检测模型</li></ul><p><strong>任职要求：</strong></p><ul><li>硕士及以上学历，计算机或数学相关专业</li><li>扎实的算法和数据结构基础</li><li>熟悉机器学习算法在安全领域的应用</li></ul></div>",
+        "minSalary": 40000,
+        "maxSalary": 70000,
+        "openedAt": "2026-05-10"
+      },
+      {
+        "positionId": 1004,
+        "title": "风控策略专家",
+        "positionState": 1,
+        "workPlaceText": "深圳",
+        "functionName": "风控",
+        "departmentName": "风控策略部",
+        "commitment": "全职",
+        "description": "<div><p><strong>岗位职责：</strong></p><ul><li>负责公司业务风控策略的制定和优化</li><li>分析业务数据，识别风险特征</li><li>搭建风控指标体系</li></ul><p><strong>任职要求：</strong></p><ul><li>本科及以上学历，金融、统计相关专业</li><li>5年以上风控策略工作经验</li><li>熟悉数据分析工具</li></ul></div>",
+        "minSalary": 0,
+        "maxSalary": 0,
+        "openedAt": "2026-02-01"
+      },
+      {
+        "positionId": 1005,
+        "title": "安全运营工程师",
+        "positionState": 1,
+        "workPlaceText": "北京",
+        "functionName": "安全运营",
+        "departmentName": "安全运营中心",
+        "commitment": "全职",
+        "description": "<div><p><strong>岗位职责：</strong></p><ul><li>负责安全运营平台的日常监控和告警处理</li><li>参与安全事件应急响应</li><li>优化安全检测规则</li></ul><p><strong>任职要求：</strong></p><ul><li>本科及以上学历</li><li>2年以上安全运营经验</li><li>熟悉SIEM和SOAR平台</li></ul></div>",
+        "minSalary": 20000,
+        "maxSalary": 35000,
+        "openedAt": "2026-06-01"
+      },
+      {
+        "positionId": 1006,
+        "title": "AI研发工程师",
+        "positionState": 1,
+        "workPlaceText": "深圳",
+        "functionName": "AI研发",
+        "departmentName": "AI平台研发部",
+        "commitment": "全职",
+        "description": "<div><p><strong>岗位职责：</strong></p><ul><li>参与AI平台和AI Agent的研发</li><li>设计和实现大模型推理服务</li><li>优化模型部署流水线</li></ul><p><strong>任职要求：</strong></p><ul><li>本科及以上学历</li><li>3年以上AI开发经验</li><li>熟悉LLM应用开发和RAG技术</li><li>了解MLOps和模型部署流程</li></ul></div>",
+        "minSalary": 30000,
+        "maxSalary": 50000,
+        "openedAt": "2026-06-15"
+      }
+    ]
+  }
+}

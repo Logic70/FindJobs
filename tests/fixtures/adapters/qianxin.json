@@ -1,0 +1,74 @@
+{
+    "code": "00",
+    "data": {
+        "rowCount": 5,
+        "details": [
+            {
+                "PostId": "QN1001",
+                "PostName": "移动安全工程师",
+                "WorkPlace": "北京",
+                "OrgName": "天机实验室",
+                "Salary": "10-15k/月",
+                "PostType": "安全技术",
+                "RecruitNumber": "2",
+                "ReleaseTime": "2026-07-01",
+                "RecruitType": 2,
+                "RecruitTypeName": "社会招聘",
+                "serviceCondition": "<p>岗位要求：<br>1. 熟悉移动安全攻防技术<br>2. 掌握Android/iOS逆向分析<br>3. 了解ARM汇编和反调试技术</p>",
+                "workConcet": "<p>工作职责：<br>1. 负责移动安全漏洞挖掘与分析<br>2. 研究移动平台安全防护技术<br>3. 参与内部安全工具研发</p>"
+            },
+            {
+                "PostId": "QN1002",
+                "PostName": "安全开发工程师",
+                "WorkPlace": "北京,上海",
+                "OrgName": "安全开发部",
+                "Salary": "20k-35k",
+                "PostType": "技术类",
+                "RecruitNumber": "3",
+                "ReleaseTime": "2026-07-02",
+                "RecruitType": 2,
+                "RecruitTypeName": "社会招聘",
+                "serviceCondition": "<p>岗位要求：<br>1. 熟悉C/C++或Go语言<br>2. 有安全开发或SDL相关经验<br>3. 了解常见安全漏洞原理</p>",
+                "workConcet": "<p>工作职责：<br>1. 负责安全产品核心功能研发<br>2. 参与安全工具链建设<br>3. 安全编码规范推广</p>"
+            },
+            {
+                "PostId": "QN1003",
+                "PostName": "AI安全工程师",
+                "WorkPlace": "杭州",
+                "OrgName": "AI安全实验室",
+                "Salary": "30k-50k·15薪",
+                "PostType": "技术类",
+                "RecruitNumber": "1",
+                "ReleaseTime": "2026-07-03",
+                "RecruitType": 2,
+                "RecruitTypeName": "社会招聘",
+                "serviceCondition": "<p>岗位要求：<br>1. 熟悉AI安全攻防技术<br>2. 了解大模型安全与对抗攻击<br>3. 有LLM红队测试经验优先</p>",
+                "workConcet": "<p>工作职责：<br>1. AI模型安全评估与加固<br>2. 大模型红队测试与漏洞挖掘<br>3. 跟踪AI安全前沿研究</p>"
+            },
+            {
+                "PostId": "QN1004",
+                "PostName": "安全算法工程师",
+                "WorkPlace": "北京",
+                "OrgName": "算法部",
+                "Salary": "",
+                "PostType": "技术类",
+                "RecruitNumber": "2",
+                "ReleaseTime": "2026-07-04",
+                "RecruitType": 2,
+                "RecruitTypeName": "社会招聘"
+            },
+            {
+                "PostId": "QN1005",
+                "PostName": "行政专员",
+                "WorkPlace": "北京",
+                "OrgName": "行政部",
+                "Salary": "8k-12k",
+                "PostType": "职能类",
+                "RecruitNumber": "1",
+                "ReleaseTime": "2026-07-05",
+                "RecruitType": 2,
+                "RecruitTypeName": "社会招聘"
+            }
+        ]
+    }
+}

@@ -16,11 +16,14 @@ from findjobs.adapters import baidu             # noqa: F401
 from findjobs.adapters import bytedance         # noqa: F401
 from findjobs.adapters import deepseek          # noqa: F401
 from findjobs.adapters import feishu            # noqa: F401
+from findjobs.adapters import chaitin           # noqa: F401
 from findjobs.adapters import jd                # noqa: F401
 from findjobs.adapters import kuaishou          # noqa: F401
 from findjobs.adapters import meituan           # noqa: F401
 from findjobs.adapters import netease           # noqa: F401
 from findjobs.adapters import iflytek           # noqa: F401
+from findjobs.adapters import qianxin           # noqa: F401
+from findjobs.adapters import sangfor           # noqa: F401
 
 __all__ = [
     "AdapterContext",

@@ -34,7 +34,7 @@ def test_quality_gate_offline_tests_are_real_names():
 
     test_text = "\n".join(
         path.read_text(encoding="utf-8")
-        for path in (Path("tests/test_phase3.py"), Path("tests/test_phase3_new_sources.py"))
+        for path in sorted(Path("tests").glob("test_*.py"))
     )
 
     for gate in ADAPTER_QUALITY_GATES.values():
