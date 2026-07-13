@@ -1,5 +1,6 @@
 """Typer CLI application for FindJobs."""
 
+import sys
 from pathlib import Path
 from typing import Callable
 
@@ -26,6 +27,27 @@ def _shorten_error(value: str | None, limit: int = 80) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 3] + "..."
+
+
+def _safe_stdout_emit(text: str) -> None:
+    """Emit *text* plus newline to stdout.
+
+    When the active stream encoding cannot represent the content and the
+    stream supports ``reconfigure()``, switches the stream to UTF-8 and
+    retries.  Ordinary UTF-8 streams and ``StringIO`` (used by Typer's
+    ``CliRunner``) are unaffected because their writes succeed on the
+    first attempt.
+    """
+    try:
+        sys.stdout.write(text + "\n")
+        sys.stdout.flush()
+    except UnicodeEncodeError:
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except AttributeError:
+            raise
+        sys.stdout.write(text + "\n")
+        sys.stdout.flush()
 
 
 def _format_run_dt(value) -> str:
@@ -580,12 +602,27 @@ def export(
         "--salary-disclosed",
         help='Filter by salary disclosure: "true" or "false".',
     ),
+    detail_level: str = typer.Option(
+        "summary",
+        "--detail-level",
+        help='Detail level: "summary" (default, excludes long text) or "full".',
+    ),
 ):
     """Export collected jobs as JSONL or CSV for AI workflow analysis.
 
     Exported data contains only database facts — no salary estimation or
     inferred fields.  Designed for use by external AI workflow prompts.
     """
+
+    # Validate detail_level before opening the output file or database.
+    if detail_level not in ("summary", "full"):
+        typer.echo(
+            f"Invalid value for --detail-level: '{detail_level}'. "
+            "Use 'summary' or 'full'.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     from pathlib import Path
 
     from findjobs.db import init_db
@@ -621,6 +658,7 @@ def export(
             company=company,
             status=status,
             salary_disclosed=sd,
+            detail_level=detail_level,
         )
     finally:
         session.close()
@@ -628,7 +666,7 @@ def export(
             out_stream.close()
 
     if result is not None:
-        typer.echo(result)
+        _safe_stdout_emit(result)
 
 
 @app.command()

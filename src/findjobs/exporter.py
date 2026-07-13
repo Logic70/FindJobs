@@ -27,7 +27,7 @@ def _days_ago(days: int) -> datetime:
     return _utcnow() - timedelta(days=days)
 
 
-EXPORT_COLUMNS = [
+SUMMARY_COLUMNS = [
     "id",
     "company_slug",
     "company_name",
@@ -48,6 +48,28 @@ EXPORT_COLUMNS = [
     "published_at",
 ]
 
+FULL_COLUMNS = SUMMARY_COLUMNS + [
+    "relevance_status",
+    "classification_version",
+    "classification_reasons",
+    "description",
+    "responsibilities",
+    "requirements",
+    "detail_completeness",
+]
+
+# Backward-compatible alias — points at the same list as summary.
+EXPORT_COLUMNS = SUMMARY_COLUMNS
+
+
+def _validate_detail_level(detail_level: str) -> None:
+    """Raise ``ValueError`` when *detail_level* is not ``"summary"`` or ``"full"``."""
+    if detail_level not in ("summary", "full"):
+        raise ValueError(
+            f"Invalid detail_level: {detail_level!r}. "
+            "Must be 'summary' or 'full'."
+        )
+
 
 def query_jobs(
     session: Session,
@@ -57,36 +79,58 @@ def query_jobs(
     company: str | None = None,
     status: str | None = None,
     salary_disclosed: bool | None = None,
+    detail_level: str = "summary",
 ) -> list[dict[str, Any]]:
     """Query jobs from *session* with optional filters, returning flat dicts.
 
-    Each dict contains only database-stored fields (see EXPORT_COLUMNS).
-    No salary estimation or inference is performed.
+    Each dict contains only database-stored fields (see SUMMARY_COLUMNS /
+    FULL_COLUMNS).  No salary estimation or inference is performed.
+
+    Args:
+        detail_level: ``"summary"`` (default, excludes long text and
+            classification fields) or ``"full"`` (includes all database facts).
     """
-    query = (
-        sa.select(
-            Job.id,
-            Company.slug.label("company_slug"),
-            Company.name.label("company_name"),
-            Job.title,
-            Job.location,
-            Job.job_type,
-            Job.status,
-            Job.salary_text,
-            Job.salary_min,
-            Job.salary_max,
-            Job.salary_currency,
-            Job.salary_period,
-            Job.salary_disclosed,
-            Job.matched_tags,
-            Job.url,
-            Job.first_seen_at,
-            Job.last_seen_at,
-            Job.published_at,
+    _validate_detail_level(detail_level)
+
+    columns = [
+        Job.id,
+        Company.slug.label("company_slug"),
+        Company.name.label("company_name"),
+        Job.title,
+        Job.location,
+        Job.job_type,
+        Job.status,
+        Job.salary_text,
+        Job.salary_min,
+        Job.salary_max,
+        Job.salary_currency,
+        Job.salary_period,
+        Job.salary_disclosed,
+        Job.matched_tags,
+        Job.url,
+        Job.first_seen_at,
+        Job.last_seen_at,
+        Job.published_at,
+    ]
+
+    if detail_level == "full":
+        columns.extend(
+            [
+                Job.relevance_status,
+                Job.classification_version,
+                Job.classification_reasons,
+                Job.description,
+                Job.responsibilities,
+                Job.requirements,
+                Job.detail_completeness,
+            ]
         )
+
+    query = (
+        sa.select(*columns)
         .select_from(Job)
         .join(Company, Job.company_id == Company.id)
-        .order_by(Job.last_seen_at.desc())
+        .order_by(Job.last_seen_at.desc(), Job.id.desc())
     )
 
     if tag is not None:
@@ -129,6 +173,26 @@ def query_jobs(
                 d["matched_tags"] = [t.strip() for t in tags_raw.split(",") if t.strip()]
         else:
             d["matched_tags"] = []
+
+        # Parse classification_reasons (only present in full mode)
+        if detail_level == "full":
+            reasons_raw = d.get("classification_reasons")
+            if reasons_raw:
+                try:
+                    parsed = json.loads(reasons_raw)
+                    if isinstance(parsed, list):
+                        d["classification_reasons"] = [str(r) for r in parsed]
+                    else:
+                        d["classification_reasons"] = [
+                            r.strip() for r in reasons_raw.split(",") if r.strip()
+                        ]
+                except (json.JSONDecodeError, TypeError):
+                    d["classification_reasons"] = [
+                        r.strip() for r in reasons_raw.split(",") if r.strip()
+                    ]
+            else:
+                d["classification_reasons"] = []
+
         results.append(d)
 
     return results
@@ -141,16 +205,33 @@ def export_jsonl(jobs: list[dict[str, Any]], output: io.TextIOBase) -> None:
         output.write("\n")
 
 
-def export_csv(jobs: list[dict[str, Any]], output: io.TextIOBase) -> None:
-    """Write *jobs* as CSV to *output* with stable columns."""
-    writer = csv.DictWriter(output, fieldnames=EXPORT_COLUMNS, extrasaction="ignore")
+def export_csv(
+    jobs: list[dict[str, Any]],
+    output: io.TextIOBase,
+    *,
+    detail_level: str = "summary",
+) -> None:
+    """Write *jobs* as CSV to *output* with stable columns.
+
+    Args:
+        detail_level: ``"summary"`` (default) or ``"full"`` — controls which
+            column set is written as the CSV header.
+    """
+    _validate_detail_level(detail_level)
+    columns = FULL_COLUMNS if detail_level == "full" else SUMMARY_COLUMNS
+    writer = csv.DictWriter(output, fieldnames=columns, extrasaction="ignore")
     writer.writeheader()
     for job in jobs:
-        # Flatten matched_tags back to a comma-separated string for CSV
         row = dict(job)
+        # Flatten matched_tags back to a comma-separated string for CSV
         tags = row.get("matched_tags")
         if isinstance(tags, list):
             row["matched_tags"] = ", ".join(tags)
+        # Flatten classification_reasons for full CSV
+        if detail_level == "full":
+            reasons = row.get("classification_reasons")
+            if isinstance(reasons, list):
+                row["classification_reasons"] = ", ".join(reasons)
         writer.writerow(row)
 
 
@@ -164,6 +245,7 @@ def do_export(
     company: str | None = None,
     status: str | None = None,
     salary_disclosed: bool | None = None,
+    detail_level: str = "summary",
 ) -> str | None:
     """Query jobs and write them in the requested format.
 
@@ -177,6 +259,7 @@ def do_export(
         company: Filter by company slug.
         status: Filter by job status.
         salary_disclosed: Filter by salary disclosure.
+        detail_level: ``"summary"`` (default) or ``"full"``.
 
     Returns:
         The output string if *output* is None, otherwise None.
@@ -188,6 +271,7 @@ def do_export(
         company=company,
         status=status,
         salary_disclosed=salary_disclosed,
+        detail_level=detail_level,
     )
 
     if output is None:
@@ -196,7 +280,7 @@ def do_export(
         buf = output
 
     if fmt == "csv":
-        export_csv(jobs, buf)
+        export_csv(jobs, buf, detail_level=detail_level)
     else:
         export_jsonl(jobs, buf)
 
