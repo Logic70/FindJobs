@@ -2,34 +2,51 @@
 {% block title %}{{ job.title }}{% endblock %}
 {% block body %}
 
-<p><a href="/jobs">&larr; Back to Jobs</a></p>
+<p><a href="/jobs">&larr; 返回职位列表</a></p>
 
 <h2>{{ job.title }}</h2>
 
+<div class="table-scroll">
 <table class="meta">
-    <tr><th>Company</th><td>{{ job.company.name if job.company else "" }}</td></tr>
-    <tr><th>Location</th><td>{{ job.location }}</td></tr>
-    <tr><th>Type</th><td>{{ job.job_type }}</td></tr>
-    <tr><th>Status</th><td>{{ job.status }}</td></tr>
-    <tr><th>Tags</th><td>{{ parse_tags(job.matched_tags) | join(", ") }}</td></tr>
-    <tr><th>Salary</th><td>{{ "未披露" if not job.salary_disclosed else job.salary_text }}</td></tr>
-    <tr><th>Official URL</th><td>{% if job.url %}<a href="{{ job.url }}" target="_blank">{{ job.url }}</a>{% endif %}</td></tr>
-    <tr><th>First seen</th><td>{{ fmt_dt(job.first_seen_at) }}</td></tr>
-    <tr><th>Last seen</th><td>{{ fmt_dt(job.last_seen_at) }}</td></tr>
+    <tr><th>公司</th><td>{{ job.company.name if job.company else "" }}</td></tr>
+    <tr><th>地点</th><td>{{ job.location }}</td></tr>
+    <tr><th>类型</th><td>{{ job.job_type }}</td></tr>
+    <tr><th>状态</th><td>{{ job.status }}</td></tr>
+    <tr><th>标签</th><td>{{ parse_tags(job.matched_tags) | join(", ") }}</td></tr>
+    <tr><th>薪资</th><td>{{ "未披露" if not job.salary_disclosed else job.salary_text }}</td></tr>
+    <tr><th>官方链接</th><td>{% if job.url %}{% if is_safe_url(job.url) %}<a href="{{ job.url }}" target="_blank" rel="noopener">{{ job.url }}</a>{% else %}<span class="unsafe-url">{{ job.url }}</span>{% endif %}{% endif %}</td></tr>
+    <tr><th>首次发现</th><td>{{ fmt_dt(job.first_seen_at) }}</td></tr>
+    <tr><th>最近发现</th><td>{{ fmt_dt(job.last_seen_at) }}</td></tr>
 </table>
+</div>
 
-<h3>Description</h3>
+<h3>岗位职责</h3>
+{% if job.responsibilities %}
+<pre class="description">{{ job.responsibilities }}</pre>
+{% else %}
+<p class="empty">未提供</p>
+{% endif %}
+
+<h3>岗位要求</h3>
+{% if job.requirements %}
+<pre class="description">{{ job.requirements }}</pre>
+{% else %}
+<p class="empty">未提供</p>
+{% endif %}
+
+<h3>官方描述</h3>
 {% if job.description %}
 <pre class="description">{{ job.description }}</pre>
 {% else %}
-<p class="empty">No description.</p>
+<p class="empty">未提供</p>
 {% endif %}
 
-<h3>Observations</h3>
+<h3>变更记录</h3>
 {% if job.observations %}
+<div class="table-scroll">
 <table>
     <thead>
-    <tr><th>Seen at</th><th>Run ID</th><th>Field</th><th>Old</th><th>New</th></tr>
+    <tr><th>发现时间</th><th>运行 ID</th><th>字段</th><th>旧值</th><th>新值</th></tr>
     </thead>
     <tbody>
     {% for obs in job.observations %}
@@ -37,46 +54,56 @@
         <td>{{ fmt_dt(obs.seen_at) }}</td>
         <td>{{ obs.collect_run_id or "" }}</td>
         <td>{{ obs.field_name or "" }}</td>
-        <td>{{ obs.old_value }}</td>
-        <td>{{ obs.new_value }}</td>
+        <td class="cell-long">{{ obs.old_value }}</td>
+        <td class="cell-long">{{ obs.new_value }}</td>
     </tr>
     {% endfor %}
     </tbody>
 </table>
+</div>
 {% else %}
-<p class="empty">No observations.</p>
+<p class="empty">无变更记录</p>
 {% endif %}
 
-<h3>Marks</h3>
+<h3>用户标记</h3>
 {% if job.user_marks %}
+<div class="table-scroll">
 <table>
     <thead>
-    <tr><th>Type</th><th>Note</th><th>Updated</th></tr>
+    <tr><th>类型</th><th>备注</th><th>更新时间</th><th></th></tr>
     </thead>
     <tbody>
-    {% for m in job.user_marks %}
+    {% for m in sort_marks(job.user_marks) %}
     <tr>
-        <td>{{ m.mark_type }}</td>
+        <td>{{ mark_label(m.mark_type) }}</td>
         <td>{{ m.note }}</td>
         <td>{{ fmt_dt(m.updated_at) }}</td>
+        <td>
+            <form action="/jobs/{{ job.id }}/marks/delete" method="post" class="mark-delete-form">
+                <input type="hidden" name="mark_type" value="{{ m.mark_type }}">
+                <input type="hidden" name="next_url" value="/jobs/{{ job.id }}">
+                <button type="submit" class="mark-delete-btn" title="删除标记" aria-label="删除标记">×</button>
+            </form>
+        </td>
     </tr>
     {% endfor %}
     </tbody>
 </table>
+</div>
 {% else %}
-<p class="empty">No marks.</p>
+<p class="empty">无标记</p>
 {% endif %}
 
-<h3>Add / Update Mark</h3>
+<h3>添加 / 更新标记</h3>
 <form method="post" action="/jobs/{{ job.id }}/marks" class="mark-form">
-    <select name="mark_type" required>
-        <option value="">-- Select --</option>
-        <option value="bookmark">Bookmark</option>
-        <option value="applied">Applied</option>
-        <option value="ignored">Ignored</option>
+    <select name="mark_type" required aria-label="标记类型">
+        <option value="">-- 选择 --</option>
+        <option value="bookmark">收藏</option>
+        <option value="applied">已投递</option>
+        <option value="ignored">忽略</option>
     </select>
-    <input name="note" placeholder="Optional note…" class="filter-input">
-    <button type="submit">Save</button>
+    <input name="note" placeholder="备注（可选）" class="filter-input" aria-label="备注">
+    <button type="submit">保存</button>
 </form>
 
 {% endblock %}

@@ -33,6 +33,19 @@
 <div class="rec-aggregate-advice">{{ result.aggregate_learning_advice }}</div>
 {% endif %}
 
+{# ---- show_ignored compact GET control ---- #}
+<form method="get" class="rec-filter-bar">
+  <label class="filter-checkbox">
+    <input type="checkbox" name="show_ignored" value="true"
+           {% if request.query_params.get('show_ignored') == 'true' %}checked{% endif %}>
+    显示忽略
+  </label>
+  {% if filter_limit %}
+  <input type="hidden" name="limit" value="{{ filter_limit }}">
+  {% endif %}
+  <button type="submit">应用</button>
+</form>
+
 {# ---- Recommendation cards ---- #}
 {% if result.recommendations %}
   {% for rec in result.recommendations %}
@@ -190,16 +203,23 @@
       {% if job_marks %}
       <div class="rec-current-marks">
         {% for mark_type, note in job_marks %}
-        <span class="rec-mark rec-mark-{{ mark_type }}">{{ mark_type }}{% if note %}: {{ note }}{% endif %}</span>
+        <span class="rec-mark-wrapper">
+          <span class="rec-mark rec-mark-{{ mark_type }}">{{ mark_label(mark_type) }}{% if note %}: {{ note }}{% endif %}</span>
+          <form class="mark-delete-form" action="/jobs/{{ rec.job_id }}/marks/delete" method="post">
+            <input type="hidden" name="mark_type" value="{{ mark_type }}">
+            <input type="hidden" name="next_url" value="{{ recommendations_next }}">
+            <button type="submit" class="mark-delete-btn" title="删除标记" aria-label="删除标记">×</button>
+          </form>
+        </span>
         {% endfor %}
       </div>
       {% endif %}
 
       <form class="mark-form" action="/jobs/{{ rec.job_id }}/marks" method="post">
-        <input type="hidden" name="next_url" value="/recommendations">
+        <input type="hidden" name="next_url" value="{{ recommendations_next }}">
         <select name="mark_type" aria-label="标记类型">
           <option value="bookmark">收藏</option>
-          <option value="applied">已申请</option>
+          <option value="applied">已投递</option>
           <option value="ignored">忽略</option>
         </select>
         <input type="text" name="note" placeholder="备注" aria-label="备注">

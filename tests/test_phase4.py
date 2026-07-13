@@ -1089,9 +1089,637 @@ class TestJobsPaginationUI:
         resp = client_extended.get("/jobs")
         assert resp.status_code == 200
         assert 'class="table-scroll"' in resp.text
+        assert 'class="jobs-table"' in resp.text
+
+    def test_jobs_table_keeps_readable_mobile_width(self):
+        """The dense jobs table scrolls instead of collapsing every column."""
+        css_path = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "findjobs"
+            / "static"
+            / "style.css"
+        )
+        css = css_path.read_text(encoding="utf-8")
+        assert ".jobs-table { min-width: 1040px; }" in css
 
     def test_show_ignored_checkbox_present(self, client_extended):
         """show_ignored checkbox is present."""
         resp = client_extended.get("/jobs")
         assert resp.status_code == 200
         assert "显示忽略" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# Phase 4B: Mark deletion endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestMarkDeletion:
+    """Phase 4B: POST /jobs/{id}/marks/delete — deletion behavior."""
+
+    def test_delete_existing_mark(self, tmp_db):
+        """POST to delete endpoint removes the mark and redirects to detail."""
+        db_path, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": "Watching"})
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bookmark"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+        from findjobs.db import init_db
+        from findjobs.models import UserMark
+
+        session = init_db(db_path)
+        try:
+            mark = session.query(UserMark).filter(
+                UserMark.job_id == 1, UserMark.mark_type == "bookmark"
+            ).first()
+            assert mark is None
+        finally:
+            session.close()
+
+    def test_delete_mark_idempotent(self, tmp_db):
+        """Deleting a non-existent mark returns 303 (idempotent)."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bookmark"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+
+    def test_delete_mark_invalid_type(self, tmp_db):
+        """Invalid mark_type returns 400."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bogus"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 400
+
+    def test_delete_mark_unknown_job(self, tmp_db):
+        """Unknown job_id returns 404."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/9999/marks/delete",
+            data={"mark_type": "bookmark"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 404
+
+    def test_delete_mark_with_valid_next_url(self, tmp_db):
+        """Delete with safe next_url redirects there."""
+        db_path, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bookmark", "next_url": "/jobs"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs"
+
+    def test_delete_mark_with_unsafe_next_url(self, tmp_db):
+        """Delete with unsafe next_url falls back to job detail."""
+        db_path, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bookmark", "next_url": "https://evil.com"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+
+# ---------------------------------------------------------------------------
+# Phase 4B: Mark coexistence / transition semantics
+# ---------------------------------------------------------------------------
+
+
+class TestMarkSemantics:
+    """Phase 4B: POST /jobs/{id}/marks enforces semantic rules."""
+
+    def test_bookmark_and_applied_coexist(self, tmp_db):
+        """bookmark and applied may coexist on the same job."""
+        db_path, client = tmp_db
+        client.post("/jobs/2/marks", data={"mark_type": "bookmark", "note": "Watch"})
+        client.post(
+            "/jobs/2/marks",
+            data={"mark_type": "applied", "note": "Applied"},
+            follow_redirects=False,
+        )
+        from findjobs.db import init_db
+        from findjobs.models import UserMark
+
+        session = init_db(db_path)
+        try:
+            marks = session.query(UserMark).filter(UserMark.job_id == 2).all()
+            types = {m.mark_type for m in marks}
+            assert "bookmark" in types
+            assert "applied" in types
+        finally:
+            session.close()
+
+    def test_ignored_removes_applied_keeps_bookmark(self, tmp_db):
+        """Setting ignored removes applied but preserves bookmark."""
+        db_path, client = tmp_db
+        client.post("/jobs/2/marks", data={"mark_type": "bookmark", "note": "Watch"})
+        client.post("/jobs/2/marks", data={"mark_type": "applied", "note": "Applied"})
+        resp = client.post(
+            "/jobs/2/marks",
+            data={"mark_type": "ignored", "note": ""},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        from findjobs.db import init_db
+        from findjobs.models import UserMark
+
+        session = init_db(db_path)
+        try:
+            marks = session.query(UserMark).filter(UserMark.job_id == 2).all()
+            types = {m.mark_type for m in marks}
+            assert "bookmark" in types
+            assert "applied" not in types
+            assert "ignored" in types
+        finally:
+            session.close()
+
+    def test_applied_removes_ignored_keeps_bookmark(self, tmp_db):
+        """Setting applied removes ignored but preserves bookmark."""
+        db_path, client = tmp_db
+        client.post("/jobs/2/marks", data={"mark_type": "bookmark", "note": "Watch"})
+        client.post("/jobs/2/marks", data={"mark_type": "ignored", "note": ""})
+        resp = client.post(
+            "/jobs/2/marks",
+            data={"mark_type": "applied", "note": "Applied"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        from findjobs.db import init_db
+        from findjobs.models import UserMark
+
+        session = init_db(db_path)
+        try:
+            marks = session.query(UserMark).filter(UserMark.job_id == 2).all()
+            types = {m.mark_type for m in marks}
+            assert "bookmark" in types
+            assert "ignored" not in types
+            assert "applied" in types
+        finally:
+            session.close()
+
+    def test_setting_ignored_leaves_bookmark_alone(self, tmp_db):
+        """Setting ignored does not affect an existing bookmark."""
+        db_path, client = tmp_db
+        client.post("/jobs/2/marks", data={"mark_type": "bookmark", "note": "Safe"})
+        client.post(
+            "/jobs/2/marks",
+            data={"mark_type": "ignored", "note": ""},
+            follow_redirects=False,
+        )
+        from findjobs.db import init_db
+        from findjobs.models import UserMark
+
+        session = init_db(db_path)
+        try:
+            marks = session.query(UserMark).filter(UserMark.job_id == 2).all()
+            types = {m.mark_type for m in marks}
+            assert "bookmark" in types
+            assert "ignored" in types
+            assert len(marks) == 2  # exactly two, not duplicated
+        finally:
+            session.close()
+
+
+# ---------------------------------------------------------------------------
+# Phase 4B: Extended safe redirects (/jobs list and detail)
+# ---------------------------------------------------------------------------
+
+
+class TestSafeRedirectsExtended:
+    """Phase 4B: next_url redirects now include /jobs paths."""
+
+    def test_next_url_jobs_list(self, tmp_db):
+        """next_url=/jobs is a safe redirect."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs"
+
+    def test_next_url_jobs_with_query(self, tmp_db):
+        """next_url=/jobs?q=test is a safe redirect."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs?q=test"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs?q=test"
+
+    def test_next_url_jobs_detail(self, tmp_db):
+        """next_url=/jobs/1 is a safe redirect."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs/1"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_jobs_detail_with_query(self, tmp_db):
+        """next_url=/jobs/1?from=detail is rejected (no query on detail)."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={
+                "mark_type": "bookmark",
+                "note": "",
+                "next_url": "/jobs/1?from=detail",
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_random_path_rejected(self, tmp_db):
+        """next_url=/other falls back to job detail."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/other"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+
+    def test_next_url_recommendations_detail_rejected(self, tmp_db):
+        """next_url=/recommendations/1 is rejected, falls back to job detail."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/recommendations/1"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_empty_query_rejected(self, tmp_db):
+        """next_url=/jobs? is rejected (empty query)."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs?"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_key_only_rejected(self, tmp_db):
+        """next_url=/jobs?key (no =value) is rejected."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs?key"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_empty_value_rejected(self, tmp_db):
+        """next_url=/jobs?key= (empty value) is rejected."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs?key="},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_malformed_query_rejected(self, tmp_db):
+        """next_url=/jobs?=&= is rejected (malformed query components)."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs?=&="},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_fragment_rejected(self, tmp_db):
+        """next_url with fragment (#) is rejected."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs#section"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_backslash_rejected(self, tmp_db):
+        """next_url with backslash is rejected."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs\\test"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_percent_encoded_crlf_rejected(self, tmp_db):
+        """next_url with percent-encoded CR/LF is rejected."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs?q=%0D%0A"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_malformed_percent_rejected(self, tmp_db):
+        """next_url with truncated percent sequence is rejected."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/jobs?q=%2X"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_next_url_unknown_path_rejected(self, tmp_db):
+        """next_url=/other/path is rejected."""
+        _, client = tmp_db
+        resp = client.post(
+            "/jobs/1/marks",
+            data={"mark_type": "bookmark", "note": "", "next_url": "/other/path"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    # ---- These same rejection rules also apply to the delete endpoint ----
+
+    def test_delete_next_url_recommendations_detail_rejected(self, tmp_db):
+        """Delete: next_url=/recommendations/1 is rejected."""
+        _, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bookmark", "next_url": "/recommendations/1"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_delete_next_url_detail_with_query_rejected(self, tmp_db):
+        """Delete: next_url=/jobs/1?from=detail is rejected."""
+        _, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bookmark", "next_url": "/jobs/1?from=detail"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_delete_next_url_crlf_rejected(self, tmp_db):
+        """Delete: next_url with CRLF injection is rejected."""
+        _, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bookmark", "next_url": "/recommendations\r\nX-Injected: true"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_delete_next_url_external_rejected(self, tmp_db):
+        """Delete: next_url=https://evil.com is rejected."""
+        _, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bookmark", "next_url": "https://evil.com"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_delete_next_url_scheme_relative_rejected(self, tmp_db):
+        """Delete: next_url=//evil.com is rejected."""
+        _, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bookmark", "next_url": "//evil.com"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+    def test_delete_next_url_fragment_rejected(self, tmp_db):
+        """Delete: next_url with fragment is rejected."""
+        _, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+        resp = client.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "bookmark", "next_url": "/jobs#section"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers.get("location", "") == "/jobs/1"
+
+
+class TestJobDetailChinese:
+    """Phase 4B: Chinese labels, separate resp/req display, unsafe URL."""
+
+    def test_chinese_meta_labels(self, tmp_db):
+        """Detail uses Chinese labels for meta fields."""
+        _, client = tmp_db
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        html = resp.text
+        assert "公司" in html
+        assert "地点" in html
+        assert "类型" in html
+        assert "状态" in html
+        assert "标签" in html
+
+    def test_responsibilities_section(self, tmp_db):
+        """Responsibilities shown as a separate section."""
+        _, client = tmp_db
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        assert "岗位职责" in resp.text or "职责" in resp.text
+
+    def test_requirements_section(self, tmp_db):
+        """Requirements shown as a separate section."""
+        _, client = tmp_db
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        assert "岗位要求" in resp.text or "要求" in resp.text
+
+    def test_missing_responsibilities_placeholder(self, tmp_db):
+        """Missing responsibilities show an explicit placeholder."""
+        _, client = tmp_db
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        assert "未提供" in resp.text
+
+    def test_missing_requirements_placeholder(self, tmp_db):
+        """Missing requirements show an explicit placeholder."""
+        _, client = tmp_db
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        assert "未提供" in resp.text
+
+    def test_original_description_retained(self, tmp_db):
+        """Original job description is still shown."""
+        _, client = tmp_db
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        assert "LLM development" in resp.text
+
+    def test_url_link_when_safe(self, tmp_db):
+        """Safe job URL renders as a clickable link."""
+        _, client = tmp_db
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        html = resp.text
+        assert 'href="https://example.com/jobs/001"' in html
+
+    def test_unsafe_url_shown_as_text(self, tmp_db):
+        """javascript: URL in detail is text, not a link."""
+        db_path, client = tmp_db
+        from findjobs.db import init_db
+        from findjobs.models import Job
+
+        session = init_db(db_path)
+        try:
+            session.query(Job).filter(Job.id == 1).update(
+                {"url": "javascript:alert(1)"}
+            )
+            session.commit()
+        finally:
+            session.close()
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        html = resp.text
+        assert 'href="javascript:alert(1)"' not in html
+        assert "javascript:alert(1)" in html
+
+    def test_whitespace_url_shown_as_text(self, tmp_db):
+        """Whitespace-surrounded URL in detail is text, not a link."""
+        db_path, client = tmp_db
+        from findjobs.db import init_db
+        from findjobs.models import Job
+
+        session = init_db(db_path)
+        try:
+            session.query(Job).filter(Job.id == 1).update(
+                {"url": " https://example.com/jobs/001 "}
+            )
+            session.commit()
+        finally:
+            session.close()
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        html = resp.text
+        assert 'href=" https://' not in html
+        assert "https://example.com/jobs/001" in html
+
+    def test_delete_button_in_detail(self, tmp_db):
+        """Detail page has × delete buttons for marks."""
+        _, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        html = resp.text
+        assert "×" in html or "&#x2716;" in html
+        assert "/marks/delete" in html
+
+    def test_chinese_mark_label_in_detail(self, tmp_db):
+        """Detail page shows Chinese labels for marks."""
+        _, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        # The Chinese label for bookmark should appear
+        assert "收藏" in resp.text
+
+    def test_marks_deterministic_order_in_detail(self, tmp_db):
+        """Detail page shows marks in bookmark→applied→ignored order."""
+        _, client = tmp_db
+        # Insert marks in non-display order
+        client.post("/jobs/1/marks", data={"mark_type": "applied", "note": ""})
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+
+        resp = client.get("/jobs/1")
+        assert resp.status_code == 200
+        html = resp.text
+
+        # The sort_marks() helper sorts bookmark (收藏) before applied (已投递).
+        # Use </td> suffix to distinguish from <option> labels in the form.
+        idx_bookmark = html.find("收藏</td>")
+        idx_applied = html.find("已投递</td>")
+        assert idx_bookmark >= 0, "Missing bookmark label in detail table"
+        assert idx_applied >= 0, "Missing applied label in detail table"
+        assert idx_bookmark < idx_applied, (
+            "Marks not in bookmark→applied order in detail"
+        )
+
+    def test_marks_summary_combined_string(self, client_extended):
+        """Marks summary uses concatenated Chinese labels (not just filter options)."""
+        client = client_extended
+        # Add marks in non-alphabetical order
+        client.post("/jobs/1/marks", data={"mark_type": "applied", "note": ""})
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": ""})
+
+        resp = client.get("/jobs", params={"show_ignored": "true"})
+        assert resp.status_code == 200
+        html = resp.text
+
+        # "收藏, 已投递" (with comma and space) only appears in _marks_summary
+        # output; filter dropdown options are separate <option> tags, so this
+        # concatenated form cannot come from the filter UI.
+        assert "收藏, 已投递" in html
+
+    def test_marks_summary_ordering_deterministic(self, tmp_db):
+        """_marks_summary returns Chinese labels in bookmark→applied→ignored order."""
+        db_path, _ = tmp_db
+        from findjobs.db import init_db
+        from findjobs.models import Job, UserMark
+        from findjobs.web import _marks_summary
+
+        session = init_db(db_path)
+        try:
+            job = session.query(Job).filter(Job.id == 1).first()
+            # Add all three marks in non-deterministic order
+            for mt in ("applied", "ignored", "bookmark"):
+                session.add(UserMark(job_id=1, mark_type=mt, note=""))
+            session.commit()
+            session.refresh(job)
+            summary = _marks_summary(job)
+            # Expected order: bookmark, applied, ignored
+            assert summary == "收藏, 已投递, 已忽略"
+        finally:
+            session.close()

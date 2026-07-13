@@ -16,10 +16,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, joinedload, sessionmaker
 from sqlalchemy.pool import NullPool
 
+from findjobs.exporter import query_jobs
 from findjobs.job_types import job_type_matches, split_job_types
 from findjobs.locations import location_matches, split_locations
 from findjobs.models import CollectRun, Company, Job, Source, UserMark
-from findjobs.recommendation import recommend_from_session
+from findjobs.recommendation import recommend_jobs
 from findjobs.recommendation_profile import load_recommendation_profile
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -30,6 +31,26 @@ templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 VALID_MARK_TYPES = frozenset({"bookmark", "ignored", "applied"})
 _VALID_STATUSES = frozenset({"all", "active", "missing", "archived"})
 _VALID_RELEVANCE_STATUSES = frozenset({"all", "target", "review", "excluded"})
+
+# Chinese labels for user mark types shown in templates.
+_MARK_LABELS = {
+    "bookmark": "收藏",
+    "applied": "已投递",
+    "ignored": "已忽略",
+}
+
+# Deterministic display order for user mark types.
+_MARK_ORDER = {
+    "bookmark": 0,
+    "applied": 1,
+    "ignored": 2,
+}
+
+
+def _mark_label(mark_type: str) -> str:
+    """Return the Chinese display label for a mark type."""
+    return _MARK_LABELS.get(mark_type, mark_type)
+
 
 # Chinese labels for tier values shown in the recommendations UI.
 _TIER_LABELS = {
@@ -49,21 +70,117 @@ _EXCLUSION_LABELS = {
     "missing_url": "缺少链接",
 }
 
-# Only allow redirects to /recommendations with an optional safe query string.
-_SAFE_REDIRECT_RE = re.compile(r"^/recommendations(\?[a-zA-Z0-9_=&.\-]*)?$")
+# Safe character patterns for query keys and values in redirect URLs.
+# Keys: alphanumeric, _, -, ., /, %.
+# Values: same plus +.
+_SAFE_KEY_RE = re.compile(r"^[a-zA-Z0-9_\-./%]+$")
+_SAFE_VALUE_RE = re.compile(r"^[a-zA-Z0-9_\-./%+]+$")
+
+
+def _validate_percent_encoding(s: str) -> bool:
+    """Return True when *s* contains no malformed percent-encoded characters.
+
+    Checks that each ``%`` is followed by two valid hex digits and that the
+    decoded byte is not a control character (0x00–0x1F or 0x7F).
+    """
+    i = 0
+    while i < len(s):
+        if s[i] == "%":
+            if i + 2 >= len(s):
+                return False  # truncated percent sequence
+            hex_chars = s[i + 1 : i + 3]
+            if not re.match(r"^[0-9a-fA-F]{2}$", hex_chars):
+                return False  # invalid hex
+            code = int(hex_chars, 16)
+            if code < 0x20 or code == 0x7F:
+                return False  # control character
+            i += 3
+        else:
+            i += 1
+    return True
+
+
+def _is_safe_query(query: str) -> bool:
+    """Return True when *query* is a non-empty string of safe ``key=value`` pairs.
+
+    Each component must have a non-empty key and value containing only safe
+    characters.  Percent encoding must be well-formed and not decode to any
+    control character.
+    """
+    if not query:
+        return False
+    # No empty components, no leading/trailing/double ampersand.
+    if query.startswith("&") or query.endswith("&") or "&&" in query:
+        return False
+    for pair in query.split("&"):
+        if not pair or "=" not in pair:
+            return False
+        key, value = pair.split("=", 1)
+        if not key or not value:
+            return False
+        if not _SAFE_KEY_RE.match(key) or not _SAFE_VALUE_RE.match(value):
+            return False
+        if not _validate_percent_encoding(key):
+            return False
+        if not _validate_percent_encoding(value):
+            return False
+    return True
 
 
 def _is_safe_redirect(url: str) -> bool:
-    """Return True when *url* is a safe local redirect to ``/recommendations``.
+    """Return True when *url* is a safe local redirect to an allowed path.
 
-    Rejects external URLs, scheme-relative URLs, and CR/LF injection.
+    Permitted patterns (exact, no variation):
+
+    * ``/jobs``
+    * ``/jobs?<non-empty safe key=value query>``
+    * ``/jobs/<numeric id>``  *(no query allowed on detail)*
+    * ``/recommendations``
+    * ``/recommendations?<non-empty safe key=value query>``
+
+    Rejects external URLs, scheme-relative URLs, fragments, backslashes,
+    CR/LF (literal and percent-encoded), malformed percent sequences, and
+    any path not listed above.
     """
     if not url:
         return False
-    # Block HTTP response splitting
+    # Block HTTP response splitting (literal CR/LF).
     if "\r" in url or "\n" in url:
         return False
-    return bool(_SAFE_REDIRECT_RE.match(url))
+    # Block backslashes and fragments.
+    if "\\" in url or "#" in url:
+        return False
+    try:
+        parsed = urlparse(url)
+    except (ValueError, TypeError):
+        return False
+    # Block external and scheme-relative URLs.
+    if parsed.scheme or parsed.netloc:
+        return False
+    # Validate percent-encoding in the entire URL before checking paths.
+    if not _validate_percent_encoding(url):
+        return False
+    # Detect explicit empty query (e.g. /jobs? or /recommendations?).
+    # urlparse treats a trailing ? as empty query, so we check the raw URL.
+    has_explicit_empty_query = "?" in url and not parsed.query
+    if has_explicit_empty_query:
+        return False
+
+    path = parsed.path
+    query = parsed.query
+    if path == "/jobs":
+        if not query:
+            return True
+        return _is_safe_query(query)
+    if path == "/recommendations":
+        if not query:
+            return True
+        return _is_safe_query(query)
+    # /jobs/<numeric_id> — no query allowed.
+    m = re.match(r"^/jobs/(\d+)$", path)
+    if m and not query:
+        return True
+    return False
 
 
 def is_safe_url(url: str) -> bool:
@@ -96,11 +213,24 @@ def _parse_tags(matched_tags: str | None) -> list[str]:
         return []
 
 
+def _sort_marks(marks: list) -> list:
+    """Sort user marks in deterministic display order (bookmark, applied, ignored)."""
+    return sorted(marks, key=lambda m: _MARK_ORDER.get(m.mark_type, 99))
+
+
 def _marks_summary(job: Job) -> str:
-    """Return a short comma-separated summary of user marks on a job."""
+    """Return a short comma-separated summary of user marks on a job.
+
+    Uses Chinese labels in the order bookmark, applied, ignored
+    (收藏、已投递、已忽略).
+    """
     if not job.user_marks:
         return ""
-    return ", ".join(m.mark_type for m in job.user_marks)
+    sorted_marks = sorted(
+        job.user_marks,
+        key=lambda m: _MARK_ORDER.get(m.mark_type, 99),
+    )
+    return ", ".join(_mark_label(m.mark_type) for m in sorted_marks)
 
 
 def _format_dt(dt) -> str:
@@ -114,6 +244,8 @@ templates.env.globals["parse_tags"] = _parse_tags
 templates.env.globals["marks_summary"] = _marks_summary
 templates.env.globals["fmt_dt"] = _format_dt
 templates.env.globals["is_safe_url"] = is_safe_url
+templates.env.globals["mark_label"] = _mark_label
+templates.env.globals["sort_marks"] = _sort_marks
 
 
 def _get_filter_options(session: Session) -> dict:
@@ -218,6 +350,7 @@ def create_app(db_path: str | Path | None = None,
     def recommendations(
         request: Request,
         limit: int = Query(50, ge=1, le=100),
+        show_ignored: bool = Query(False),
     ):
         session = _db()
         try:
@@ -236,22 +369,60 @@ def create_app(db_path: str | Path | None = None,
                     {"error_empty": "个人资料格式无效，请检查后重试。"},
                 )
 
-            result = recommend_from_session(session, profile, limit=limit)
+            # Query all eligible jobs (full detail), filter ignored IDs
+            # before scoring so they do not consume the recommendation limit.
+            rows = query_jobs(session, detail_level="full")
 
-            # Eagerly materialise UserMark summaries for returned job IDs
+            if not show_ignored:
+                ignored_ids = {
+                    row[0]
+                    for row in session.query(UserMark.job_id)
+                    .filter(UserMark.mark_type == "ignored")
+                    .all()
+                }
+                if ignored_ids:
+                    rows = [r for r in rows if r["id"] not in ignored_ids]
+
+            result = recommend_jobs(rows, profile, limit=limit)
+
+            # Eagerly materialise UserMark summaries for returned job IDs.
             job_ids = [r.job_id for r in result.recommendations]
             marks_lookup: dict[int, tuple[tuple[str, str], ...]] = {}
             if job_ids:
-                rows = (
+                mark_rows = (
                     session.query(UserMark)
                     .filter(UserMark.job_id.in_(job_ids))
-                    .order_by(UserMark.mark_type)
                     .all()
                 )
                 tmp: dict[int, list[tuple[str, str]]] = {}
-                for m in rows:
+                for m in mark_rows:
                     tmp.setdefault(m.job_id, []).append((m.mark_type, m.note))
-                marks_lookup = {k: tuple(v) for k, v in tmp.items()}
+                # Sort marks in deterministic display order:
+                # bookmark (收藏), applied (已投递), ignored (已忽略).
+                marks_lookup = {
+                    k: tuple(
+                        sorted(v, key=lambda x: _MARK_ORDER.get(x[0], 99))
+                    )
+                    for k, v in tmp.items()
+                }
+
+            # Build the next_url for mark forms so they preserve the
+            # current recommendation page URL (including query params).
+            recommendations_next = (
+                f"/recommendations?{request.url.query}"
+                if request.url.query
+                else "/recommendations"
+            )
+
+            # Pass the effective limit to the show_ignored compact form so it
+            # can be preserved when toggling the checkbox.
+            filter_limit: int | None = None
+            limit_str = request.query_params.get("limit")
+            if limit_str:
+                try:
+                    filter_limit = int(limit_str)
+                except (ValueError, TypeError):
+                    pass
 
             return templates.TemplateResponse(
                 request,
@@ -261,6 +432,8 @@ def create_app(db_path: str | Path | None = None,
                     "marks": marks_lookup,
                     "tier_labels": _TIER_LABELS,
                     "exclusion_labels": _EXCLUSION_LABELS,
+                    "recommendations_next": recommendations_next,
+                    "filter_limit": filter_limit,
                 },
             )
         finally:
@@ -521,6 +694,34 @@ def create_app(db_path: str | Path | None = None,
 
                 return HTMLResponse("Job not found", status_code=404)
 
+            # Enforce mark semantics:
+            #   • setting ignored removes applied but leaves bookmark
+            #   • setting applied removes ignored but leaves bookmark
+            #   • bookmark and applied may coexist
+            #   • updating an existing mark does not duplicate it
+            if mark_type == "ignored":
+                applied = (
+                    session.query(UserMark)
+                    .filter(
+                        UserMark.job_id == job_id,
+                        UserMark.mark_type == "applied",
+                    )
+                    .first()
+                )
+                if applied:
+                    session.delete(applied)
+            elif mark_type == "applied":
+                ignored = (
+                    session.query(UserMark)
+                    .filter(
+                        UserMark.job_id == job_id,
+                        UserMark.mark_type == "ignored",
+                    )
+                    .first()
+                )
+                if ignored:
+                    session.delete(ignored)
+
             existing = (
                 session.query(UserMark)
                 .filter(
@@ -534,6 +735,50 @@ def create_app(db_path: str | Path | None = None,
             else:
                 mark = UserMark(job_id=job_id, mark_type=mark_type, note=note)
                 session.add(mark)
+
+            session.commit()
+
+            if _is_safe_redirect(next_url):
+                return RedirectResponse(url=next_url, status_code=303)
+            return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+        finally:
+            session.close()
+
+    # ---- POST /jobs/{job_id}/marks/delete ----
+
+    @app.post("/jobs/{job_id}/marks/delete")
+    def delete_mark(
+        request: Request,
+        job_id: int,
+        mark_type: str = Form(...),
+        next_url: str = Form(""),
+    ):
+        """Delete a user mark for a job. Idempotent for an existing valid job."""
+        if mark_type not in VALID_MARK_TYPES:
+            from fastapi.responses import HTMLResponse
+
+            return HTMLResponse(
+                f"Unsupported mark_type: {mark_type!r}", status_code=400
+            )
+
+        session = _db()
+        try:
+            job = session.query(Job).filter(Job.id == job_id).first()
+            if job is None:
+                from fastapi.responses import HTMLResponse
+
+                return HTMLResponse("Job not found", status_code=404)
+
+            mark = (
+                session.query(UserMark)
+                .filter(
+                    UserMark.job_id == job_id,
+                    UserMark.mark_type == mark_type,
+                )
+                .first()
+            )
+            if mark:
+                session.delete(mark)
 
             session.commit()
 

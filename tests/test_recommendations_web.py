@@ -517,6 +517,19 @@ class TestRecommendationsEdgeCases:
             assert "\n" not in href, f"CRLF in href: {href!r}"
             assert "\r" not in href, f"CRLF in href: {href!r}"
 
+    def test_diagnostic_filter_preserves_limit_no_js(self, client):
+        """show_ignored filter preserves limit and can submit without JavaScript."""
+        resp = client.get("/recommendations", params={"limit": 10})
+        assert resp.status_code == 200
+        html = resp.text
+        # No onchange JavaScript dependency
+        assert 'onchange="this.form.submit()"' not in html
+        # Has an explicit submit button
+        assert '<button type="submit"' in html
+        # The limit is preserved as a hidden input
+        assert 'name="limit"' in html
+        assert 'value="10"' in html
+
     def test_valid_url_still_linked(self, tmp_rec):
         """Valid job URL still renders as a clickable link."""
         db_path, _, profile_path = tmp_rec
@@ -609,14 +622,16 @@ class TestRecommendationsEdgeCases:
         assert "扫描" in html
 
     def test_jinja_escaping(self, tmp_rec):
-        """HTML in job fields is escaped, not rendered."""
+        """HTML in job fields is escaped; next_url stays as a single attribute."""
+        import html as html_mod
+        import re
         db_path, _, profile_path = tmp_rec
         from findjobs.db import init_db
         from findjobs.models import Job
         session = init_db(db_path)
         try:
             session.query(Job).filter(Job.id == 1).update(
-                {"title": '<script>alert("xss")</script>'}
+                {"title": '"><script>alert("xss")</script>'}
             )
             session.commit()
         finally:
@@ -627,8 +642,29 @@ class TestRecommendationsEdgeCases:
         c = TestClient(app)
         resp = c.get("/recommendations")
         assert resp.status_code == 200
-        assert '<script>alert("xss")</script>' not in resp.text
-        assert "&lt;script&gt;" in resp.text
+        raw = resp.text
+
+        # 1. Raw attack literal (markup + attribute-breaking sequence) must
+        #    NOT appear in the HTML output.
+        assert '"><script>alert("xss")</script>' not in raw
+        assert '<script>alert' not in raw
+
+        # 2. After HTML unescaping the original content IS recoverable.
+        decoded = html_mod.unescape(raw)
+        assert '"><script>alert("xss")</script>' in decoded
+
+        # 3. Each hidden next_url input has a single well-formed value
+        #    attribute whose content is a safe local redirect path.
+        for m in re.finditer(r'<input[^>]*name="next_url"[^>]*>', raw):
+            tag = m.group(0)
+            if 'value="' not in tag:
+                continue
+            vix = tag.index('value="')
+            vstart = vix + 7
+            vend = tag.index('"', vstart)
+            val = tag[vstart:vend]
+            assert val.startswith("/recommendations") or val.startswith("/jobs/"), \
+                f"Unexpected next_url value: {val!r}"
 
 
 class TestRecommendationsReadOnly:
@@ -716,18 +752,19 @@ class TestRecommendationsMarks:
         from findjobs.web import create_app
         app = create_app(db_path=db_path, profile_path=profile_path)
         c = TestClient(app)
-        resp = c.get("/recommendations")
+        # Use show_ignored so marks on an ignored job are still rendered
+        resp = c.get("/recommendations", params={"show_ignored": "true"})
         assert resp.status_code == 200
         html = resp.text
         # Three marks on job 1: bookmark (existing), applied, ignored
-        # Should be ordered: applied, bookmark, ignored
-        idx_applied = html.find("rec-mark-applied")
+        # Should be ordered: bookmark, applied, ignored
         idx_bookmark = html.find("rec-mark-bookmark")
+        idx_applied = html.find("rec-mark-applied")
         idx_ignored = html.find("rec-mark-ignored")
-        assert idx_applied >= 0
         assert idx_bookmark >= 0
+        assert idx_applied >= 0
         assert idx_ignored >= 0
-        assert idx_applied < idx_bookmark < idx_ignored
+        assert idx_bookmark < idx_applied < idx_ignored
 
     # --- Strict POST tests: create/update each mark type ---
 
@@ -1068,6 +1105,202 @@ class TestTemplateRegression:
         assert "min-width: 820px" in css
         # The mobile breakpoint must NOT override it to min-width: auto
         assert "min-width: auto; width: 100%" not in css
+
+
+class TestRecommendationsMarksExtended:
+    """Phase 4B: Extended mark features — delete controls, next_url preservation."""
+
+    def test_next_url_safe_escaped(self, tmp_rec):
+        """recommendations_next is NOT marked |safe; & is HTML-escaped."""
+        import html
+        db_path, _, profile_path = tmp_rec
+        from fastapi.testclient import TestClient
+        from findjobs.web import create_app
+
+        app = create_app(db_path=db_path, profile_path=profile_path)
+        c = TestClient(app)
+        # Pass an unknown query value containing characters that would be
+        # dangerous if |safe were used
+        resp = c.get(
+            "/recommendations",
+            params={"limit": 25, "show_ignored": "true", "x": '"><script>'},
+        )
+        assert resp.status_code == 200
+        raw_html = resp.text
+        # The & in the query should be HTML-escaped (not raw)
+        assert "&amp;" in raw_html, "& not escaped in hidden input value"
+        # Verify the rendered HTML doesn't contain unescaped attribute-breaking quotes
+        for match in __import__('re').finditer(r'<input[^>]*value="([^"]*)"', raw_html):
+            val = match.group(1)
+            assert '"' not in val, f"Unescaped quote in value attribute: {val!r}"
+        # Double-check the decoded value is correct
+        decoded = html.unescape(raw_html)
+        assert '/recommendations?limit=25&show_ignored=true' in decoded
+
+    def test_mark_delete_forms_on_cards(self, client):
+        """Recommendation cards have × delete buttons for existing marks."""
+        resp = client.get("/recommendations")
+        assert resp.status_code == 200
+        assert "/marks/delete" in resp.text
+
+    def test_mark_form_preserves_query(self, tmp_rec):
+        """Recommendation mark forms include current query in next_url."""
+        db_path, _, profile_path = tmp_rec
+        from fastapi.testclient import TestClient
+        from findjobs.web import create_app
+
+        app = create_app(db_path=db_path, profile_path=profile_path)
+        c = TestClient(app)
+        resp = c.get("/recommendations", params={"limit": 10})
+        assert resp.status_code == 200
+        assert '/recommendations?limit=10' in resp.text
+
+    def test_mark_form_preserves_full_query(self, tmp_rec):
+        """next_url preserves multiple query params (HTML-decoded)."""
+        import html
+        db_path, _, profile_path = tmp_rec
+        from fastapi.testclient import TestClient
+        from findjobs.web import create_app
+
+        app = create_app(db_path=db_path, profile_path=profile_path)
+        c = TestClient(app)
+        resp = c.get(
+            "/recommendations",
+            params={"limit": 25, "show_ignored": "true"},
+        )
+        assert resp.status_code == 200
+        # Without |safe, & is HTML-escaped to &amp; so decode before checking
+        decoded = html.unescape(resp.text)
+        assert '/recommendations?limit=25&show_ignored=true' in decoded
+
+    def test_post_ignored_from_card_hides_job(self, tmp_rec):
+        """POST ignored with next_url hides the job; bookmark persists."""
+        from findjobs.db import init_db
+        from findjobs.models import UserMark
+        db_path, _, profile_path = tmp_rec
+        from fastapi.testclient import TestClient
+        from findjobs.web import create_app
+
+        app = create_app(db_path=db_path, profile_path=profile_path)
+        c = TestClient(app)
+
+        # 1. Initially both jobs are visible
+        resp1 = c.get("/recommendations")
+        assert resp1.status_code == 200
+        assert "AI Security Engineer" in resp1.text
+        assert "Security Intern" in resp1.text
+
+        # 2. POST ignored on job 1 with next_url=/recommendations
+        resp2 = c.post(
+            "/jobs/1/marks",
+            data={"mark_type": "ignored", "note": "Not interested",
+                  "next_url": "/recommendations"},
+            follow_redirects=False,
+        )
+        assert resp2.status_code == 303
+        assert resp2.headers.get("location", "") == "/recommendations"
+
+        # 3. Follow the redirect — job 1 should disappear
+        resp3 = c.get("/recommendations")
+        assert resp3.status_code == 200
+        assert "AI Security Engineer" not in resp3.text
+        assert "Security Intern" in resp3.text
+
+        # 4. The original bookmark on job 1 is still stored
+        session = init_db(db_path)
+        try:
+            bookmark = session.query(UserMark).filter(
+                UserMark.job_id == 1, UserMark.mark_type == "bookmark"
+            ).first()
+            assert bookmark is not None
+            assert bookmark.note == "Watching this role"
+        finally:
+            session.close()
+
+
+class TestRecommendationsIgnored:
+    """Phase 4B: Recommendations hide ignored jobs by default."""
+
+    def _make_ignored(self, db_path, job_id):
+        from findjobs.db import init_db
+        from findjobs.models import UserMark
+        session = init_db(db_path)
+        try:
+            session.add(UserMark(job_id=job_id, mark_type="ignored", note=""))
+            session.commit()
+        finally:
+            session.close()
+
+    def test_hides_ignored_by_default(self, tmp_rec):
+        """Ignored-marked jobs are excluded from recommendations."""
+        db_path, _, profile_path = tmp_rec
+        self._make_ignored(db_path, 1)
+        from fastapi.testclient import TestClient
+        from findjobs.web import create_app
+        app = create_app(db_path=db_path, profile_path=profile_path)
+        c = TestClient(app)
+        resp = c.get("/recommendations")
+        assert resp.status_code == 200
+        html = resp.text
+        assert "AI Security Engineer" not in html
+        assert "Security Intern" in html
+
+    def test_show_ignored_includes_all(self, tmp_rec):
+        """show_ignored=true includes ignored jobs."""
+        db_path, _, profile_path = tmp_rec
+        self._make_ignored(db_path, 1)
+        from fastapi.testclient import TestClient
+        from findjobs.web import create_app
+        app = create_app(db_path=db_path, profile_path=profile_path)
+        c = TestClient(app)
+        resp = c.get("/recommendations", params={"show_ignored": "true"})
+        assert resp.status_code == 200
+        assert "AI Security Engineer" in resp.text
+        assert "Security Intern" in resp.text
+
+    def test_ignored_filtered_before_limit(self, tmp_rec):
+        """Ignored exclusion happens before the recommendation limit truncation."""
+        db_path, _, profile_path = tmp_rec
+        self._make_ignored(db_path, 1)
+        from fastapi.testclient import TestClient
+        from findjobs.web import create_app
+        app = create_app(db_path=db_path, profile_path=profile_path)
+        c = TestClient(app)
+        # With limit=1 and job 1 (score 83.0) ignored, job 2 (score ~55) fills in
+        resp = c.get("/recommendations", params={"limit": 1})
+        assert resp.status_code == 200
+        assert "AI Security Engineer" not in resp.text
+        assert "Security Intern" in resp.text
+
+    def test_ignored_not_excluded_when_no_ignored_marks(self, tmp_rec):
+        """No ignored marks → all eligible jobs shown."""
+        from fastapi.testclient import TestClient
+        from findjobs.web import create_app
+        db_path, _, profile_path = tmp_rec
+        app = create_app(db_path=db_path, profile_path=profile_path)
+        c = TestClient(app)
+        resp = c.get("/recommendations")
+        assert resp.status_code == 200
+        assert "AI Security Engineer" in resp.text
+        assert "Security Intern" in resp.text
+
+    def test_delete_button_ignored_on_mark_removes_it(self, tmp_rec):
+        """Posting mark delete for an ignored job restores it in recommendations."""
+        db_path, _, profile_path = tmp_rec
+        self._make_ignored(db_path, 1)
+        from fastapi.testclient import TestClient
+        from findjobs.web import create_app
+        app = create_app(db_path=db_path, profile_path=profile_path)
+        c = TestClient(app)
+        # Delete the ignored mark
+        c.post(
+            "/jobs/1/marks/delete",
+            data={"mark_type": "ignored"},
+        )
+        # Now job 1 should reappear
+        resp = c.get("/recommendations")
+        assert resp.status_code == 200
+        assert "AI Security Engineer" in resp.text
 
 
 def _read_css() -> str:

@@ -41,6 +41,7 @@ table {
     border-collapse: collapse; width: 100%; font-size: 13px;
     background: #fff; border: 1px solid #ddd;
 }
+.jobs-table { min-width: 1040px; }
 th, td {
     border: 1px solid #ddd; padding: 4px 8px; text-align: left;
     white-space: nowrap;
@@ -59,7 +60,10 @@ td:last-child { white-space: normal; }
 
 /* Meta table */
 .meta th { width: 120px; }
-.meta td { white-space: normal; }
+.meta td, .meta a {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
 
 /* Mark form */
 .mark-form {
@@ -223,3 +227,35 @@ td:last-child { white-space: normal; }
     max-width: 100%;
 }
 .rec-url-unsafe { color: #999; font-size: 12px; word-break: break-all; }
+
+/* Mark delete button — familiar × icon, not a pill */
+.mark-delete-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; color: #999; padding: 0 2px; line-height: 1;
+    vertical-align: middle;
+}
+.mark-delete-btn:hover { color: #c00; }
+
+/* Inline delete form sits next to the mark label */
+.mark-delete-form {
+    display: inline; margin: 0; padding: 0;
+}
+
+/* Wrapper around a mark label and its delete button */
+.rec-mark-wrapper {
+    display: inline-flex; align-items: center; gap: 2px;
+}
+
+/* Unsafe URL text in job detail */
+.unsafe-url { color: #999; font-size: 12px; word-break: break-all; }
+
+/* Long text cells in detail observation/marks tables */
+.cell-long { white-space: normal; overflow-wrap: anywhere; max-width: 300px; }
+
+/* Diagnostic filter bar for show_ignored toggle */
+.rec-filter-bar {
+    margin-bottom: 8px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
