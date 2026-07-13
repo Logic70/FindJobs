@@ -1,4 +1,5 @@
 .venv/
+.venv-wsl/
 .uv-cache/
 data/
 __pycache__/
@@ -28,6 +29,8 @@ reports/match/*-career-advice.md
 reports/match/*-profile-needed.md
 reports/match/*-priorities.md
 reports/match/recommendations.*
+reports/match/jobs-full.jsonl
+reports/match/claude-commentary.md
 reports/priority/*.md
 reports/adapter-repair/*.md
 

@@ -766,6 +766,7 @@ def _export_file(
     fmt: str,
     since: int | None,
     tag: str | None = None,
+    detail_level: str = "summary",
 ) -> None:
     """Export database facts to a file for workflow consumption."""
     from findjobs.db import init_db
@@ -781,6 +782,7 @@ def _export_file(
                 output=out_stream,
                 since_days=since,
                 tag=tag,
+                detail_level=detail_level,
             )
         finally:
             session.close()
@@ -822,6 +824,7 @@ def weekly(
 
     reports = Path(reports_dir)
     weekly_dir = reports / "weekly"
+    match_dir = reports / "match"
     jobs_path = weekly_dir / "jobs.jsonl"
     csv_path = weekly_dir / "jobs.csv"
     ai_security_path = weekly_dir / "ai-security.jsonl"
@@ -833,17 +836,20 @@ def weekly(
         typer.echo("Skipping live collection.")
 
     typer.echo("Exporting job facts...")
+    # Summary exports for existing aggregation compatibility.
     _export_file(
         db_path=db_path,
         output_path=jobs_path,
         fmt="jsonl",
         since=since,
+        detail_level="summary",
     )
     _export_file(
         db_path=db_path,
         output_path=csv_path,
         fmt="csv",
         since=since,
+        detail_level="summary",
     )
     _export_file(
         db_path=db_path,
@@ -851,7 +857,19 @@ def weekly(
         fmt="jsonl",
         since=since,
         tag="AI Security",
+        detail_level="summary",
     )
+
+    # Full export for deterministic recommendation engine.
+    full_jsonl_path = match_dir / "jobs-full.jsonl"
+    _export_file(
+        db_path=db_path,
+        output_path=full_jsonl_path,
+        fmt="jsonl",
+        since=since,
+        detail_level="full",
+    )
+    typer.echo(f"  full_input: {full_jsonl_path}")
 
     typer.echo("Running local analysis...")
     result = run_weekly_analysis(
@@ -860,6 +878,22 @@ def weekly(
         run_date=run_date,
         profile_path=Path(profile),
     )
+
+    # Deterministic recommendations from the full export.
+    profile_resolved = Path(profile)
+    rec_md = match_dir / "recommendations.md"
+    rec_json = match_dir / "recommendations.json"
+    if profile_resolved.exists():
+        from findjobs.weekly_recommendation import run_exported_recommendations
+
+        rec_output = run_exported_recommendations(
+            jobs_path=full_jsonl_path,
+            profile_path=profile_resolved,
+            markdown_output=rec_md,
+            json_output=rec_json,
+        )
+        typer.echo(f"  recommendations: {rec_output.markdown_output}")
+        typer.echo(f"  recommendations_json: {rec_output.json_output}")
 
     typer.echo(f"Weekly workflow complete: {result.total_jobs} jobs")
     typer.echo(f"  summary: {result.summary_path}")
