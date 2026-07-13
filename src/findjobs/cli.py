@@ -1,5 +1,9 @@
 """Typer CLI application for FindJobs."""
 
+from __future__ import annotations
+
+import datetime
+import json
 import sys
 from pathlib import Path
 from typing import Callable
@@ -9,6 +13,7 @@ import typer
 from findjobs.adapters import AdapterContext, get_adapter
 from findjobs.config import load_sources
 from findjobs.paths import get_project_root
+from findjobs.weekly_runtime import CollectResult, SourceFailure
 
 app = typer.Typer()
 schedule_app = typer.Typer()
@@ -17,6 +22,13 @@ profile_app = typer.Typer()
 app.add_typer(schedule_app, name="schedule", help="Manage scheduled collection.")
 app.add_typer(analyze_app, name="analyze", help="Run local analysis workflows.")
 app.add_typer(profile_app, name="profile", help="Manage the local matching profile.")
+
+
+def _validate_positive(value: float) -> float:
+    """Typer callback: reject non-positive numeric values."""
+    if value <= 0:
+        raise typer.BadParameter(f"must be positive, got {value}")
+    return value
 
 
 def _shorten_error(value: str | None, limit: int = 80) -> str:
@@ -48,6 +60,11 @@ def _safe_stdout_emit(text: str) -> None:
             raise
         sys.stdout.write(text + "\n")
         sys.stdout.flush()
+
+
+def _utc_now() -> datetime.datetime:
+    """Return current UTC datetime (patching hook for tests)."""
+    return datetime.datetime.now(datetime.timezone.utc)
 
 
 def _format_run_dt(value) -> str:
@@ -175,15 +192,15 @@ def init_profile(
 
 @profile_app.command("import")
 def import_profile(
-    source: str = typer.Argument(
-        ..., help="Path to the resume file (DOCX or PDF)."
-    ),
+    source: str = typer.Argument(..., help="Path to the resume file (DOCX or PDF)."),
     json_output: str = typer.Option(
-        "profile/profile.json", "--json-output",
+        "profile/profile.json",
+        "--json-output",
         help="Destination path for the JSON profile.",
     ),
     markdown_output: str = typer.Option(
-        "profile/profile.md", "--markdown-output",
+        "profile/profile.md",
+        "--markdown-output",
         help="Destination path for the Markdown profile.",
     ),
     force: bool = typer.Option(
@@ -356,22 +373,33 @@ def collect(
         return
 
     if not live:
-        typer.echo(
-            f"{len(active)} active source(s) configured. "
-            "Use --live to collect."
-        )
+        typer.echo(f"{len(active)} active source(s) configured. Use --live to collect.")
         for s in active:
             typer.echo(f"  - {s.name} ({s.slug}) via {s.adapter}")
         return
 
-    _run_live_collect(db_path, typer.echo)
+    collect_result = _run_live_collect(db_path, typer.echo)
+    if collect_result.failed > 0:
+        typer.echo(
+            f"Collection: {collect_result.succeeded}/"
+            f"{collect_result.total} sources succeeded, "
+            f"{collect_result.failed} failed"
+        )
+        for f in collect_result.failures:
+            typer.echo(f"  - {f.source_name}: {f.error}")
+        raise typer.Exit(1)
 
 
 def _run_live_collect(
     db_path: str | None,
     echo: Callable[[str], None],
-) -> None:
-    """Run live network collection and persist jobs for active sources."""
+) -> CollectResult:
+    """Run live network collection and persist jobs for active sources.
+
+    Returns a *CollectResult* with per-source success/failure counts.
+    Configuration sync failure may raise normally.
+    The database session is closed in a ``finally`` block.
+    """
     from findjobs.collection import (
         collect_jobs,
         complete_collect_run,
@@ -386,99 +414,129 @@ def _run_live_collect(
     config = load_sources()
     active = [s for s in config.sources if s.is_active]
     session = init_db(Path(db_path) if db_path else None)
-    maps = sync_config(session, config)
 
-    for source_config in active:
-        company = maps["companies"].get(source_config.company_slug)
-        source = maps["sources"].get(source_config.slug)
-        if company is None or source is None:
-            echo(
-                f"  {source_config.name}: company/source not synced, skipping"
-            )
-            continue
+    try:
+        # Let configuration sync failures propagate to the caller.
+        maps = sync_config(session, config)
 
-        echo(f"  {source_config.name}: collecting...")
+        result = CollectResult(total=len(active))
 
-        # -- Phase 1: create and commit the running record -------------------
-        try:
-            run = create_collect_run(session, source.id)
-            session.commit()
-        except Exception as e:
-            echo(
-                f"  {source_config.name}: failed to create collect run - {e}"
-            )
-            session.rollback()
-            continue
-
-        # -- Phase 2: collect, persist, reconcile ---------------------------
-        try:
-            adapter = get_adapter(source_config.adapter)
-            context = AdapterContext(
-                company_slug=source_config.company_slug,
-                source_slug=source_config.slug,
-                base_url=source_config.base_url,
-                fetch_url=source_config.fetch_url,
-            )
-            jobs = adapter.collect(context)
-
-            total, new_count = collect_jobs(
-                session, source.id, company.id, run.id, jobs
-            )
-
-            is_complete = (
-                source_config.collection_completeness
-                == "complete_for_target_scope"
-            )
-            result = reconcile_jobs_after_collect(
-                session, source.id, run.id, is_complete
-            )
-
-            # -- Handle reconciliation result --------------------------------
-            if result.action.startswith("skipped_"):
-                complete_collect_run(
-                    session,
-                    run,
-                    total,
-                    new_count,
-                    errors=f"lifecycle {result.action}: {result.reason}",
+        for source_config in active:
+            company = maps["companies"].get(source_config.company_slug)
+            source = maps["sources"].get(source_config.slug)
+            if company is None or source is None:
+                echo(f"  {source_config.name}: company/source not synced, skipping")
+                result.failed += 1
+                result.failures.append(
+                    SourceFailure(source_config.name, "company/source not synced")
                 )
+                continue
+
+            echo(f"  {source_config.name}: collecting...")
+
+            # -- Phase 1: create and commit the running record ---------------
+            try:
+                run = create_collect_run(session, source.id)
                 session.commit()
+            except Exception as e:
+                err_msg = _shorten_error(str(e), 240)
                 echo(
-                    f"  {source_config.name}: {total} jobs collected, "
-                    f"{new_count} new "
-                    f"[lifecycle: {result.action} - {result.reason}]"
+                    f"  {source_config.name}: failed to create collect run - {err_msg}"
                 )
-            else:
-                complete_collect_run(session, run, total, new_count)
-                session.commit()
-                msg = (
-                    f"  {source_config.name}: {total} jobs collected, "
-                    f"{new_count} new"
-                )
-                if result.made_missing or result.made_archived:
-                    parts = []
-                    if result.made_missing:
-                        parts.append(f"{result.made_missing} missing")
-                    if result.made_archived:
-                        parts.append(f"{result.made_archived} archived")
-                    msg += f" [lifecycle: {', '.join(parts)}]"
-                echo(msg)
+                session.rollback()
+                result.failed += 1
+                result.failures.append(SourceFailure(source_config.name, err_msg))
+                continue
 
-        except Exception as e:
-            run_id = run.id
-            session.rollback()
-            run = session.get(CollectRun, run_id)
-            if run is None:
-                echo(
-                    f"  {source_config.name}: consistency error - "
-                    f"collect run {run_id} vanished after commit"
+            # -- Phase 2: collect, persist, reconcile -----------------------
+            try:
+                adapter = get_adapter(source_config.adapter)
+                context = AdapterContext(
+                    company_slug=source_config.company_slug,
+                    source_slug=source_config.slug,
+                    base_url=source_config.base_url,
+                    fetch_url=source_config.fetch_url,
                 )
-            else:
-                fail_collect_run(session, run, str(e))
-                session.commit()
-                echo(f"  {source_config.name}: error - {e}")
+                jobs = adapter.collect(context)
 
-    session.close()
+                total, new_count = collect_jobs(
+                    session, source.id, company.id, run.id, jobs
+                )
+
+                is_complete = (
+                    source_config.collection_completeness == "complete_for_target_scope"
+                )
+                reconcile_result = reconcile_jobs_after_collect(
+                    session, source.id, run.id, is_complete
+                )
+
+                # -- Handle reconciliation result ---------------------------
+                if reconcile_result.action.startswith("skipped_"):
+                    complete_collect_run(
+                        session,
+                        run,
+                        total,
+                        new_count,
+                        errors=(
+                            f"lifecycle {reconcile_result.action}: "
+                            f"{reconcile_result.reason}"
+                        ),
+                    )
+                    session.commit()
+                    echo(
+                        f"  {source_config.name}: {total} jobs collected, "
+                        f"{new_count} new "
+                        f"[lifecycle: {reconcile_result.action} - "
+                        f"{reconcile_result.reason}]"
+                    )
+                else:
+                    complete_collect_run(session, run, total, new_count)
+                    session.commit()
+                    msg = (
+                        f"  {source_config.name}: {total} jobs collected, "
+                        f"{new_count} new"
+                    )
+                    if reconcile_result.made_missing or reconcile_result.made_archived:
+                        parts = []
+                        if reconcile_result.made_missing:
+                            parts.append(f"{reconcile_result.made_missing} missing")
+                        if reconcile_result.made_archived:
+                            parts.append(f"{reconcile_result.made_archived} archived")
+                        msg += f" [lifecycle: {', '.join(parts)}]"
+                    echo(msg)
+
+                result.succeeded += 1
+
+            except Exception as e:
+                err_msg = _shorten_error(str(e), 240)
+                run_id = run.id
+                session.rollback()
+                try:
+                    run = session.get(CollectRun, run_id)
+                    if run is None:
+                        echo(
+                            f"  {source_config.name}: consistency error - "
+                            f"collect run {run_id} vanished after commit"
+                        )
+                    else:
+                        fail_collect_run(session, run, err_msg)
+                        session.commit()
+                        echo(f"  {source_config.name}: error - {err_msg}")
+                except Exception as rec_fail:
+                    session.rollback()
+                    combined = (
+                        f"recording-failure: "
+                        f"{_shorten_error(str(rec_fail), 60)}; "
+                        f"source: {err_msg}"
+                    )
+                    err_msg = _shorten_error(combined, 240)
+                    echo(f"  {source_config.name}: error - {err_msg}")
+                result.failed += 1
+                result.failures.append(SourceFailure(source_config.name, err_msg))
+
+        return result
+    finally:
+        session.close()
 
 
 def _run_fixture_collect(fixture_path: str, db_path: str | None) -> None:
@@ -553,12 +611,8 @@ def _run_fixture_collect(fixture_path: str, db_path: str | None) -> None:
 
 @app.command()
 def serve(
-    host: str = typer.Option(
-        "127.0.0.1", "--host", help="Host address to bind to."
-    ),
-    port: int = typer.Option(
-        8000, "--port", help="Port number to listen on."
-    ),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host address to bind to."),
+    port: int = typer.Option(8000, "--port", help="Port number to listen on."),
     db_path: str = typer.Option(
         None, "--db-path", help="Path to the SQLite database file."
     ),
@@ -591,9 +645,7 @@ def export(
     tag: str = typer.Option(
         None, "--tag", help="Filter by matched tag (substring match)."
     ),
-    company: str = typer.Option(
-        None, "--company", help="Filter by company slug."
-    ),
+    company: str = typer.Option(None, "--company", help="Filter by company slug."),
     status: str = typer.Option(
         None, "--status", help="Filter by job status (e.g. active, archived)."
     ),
@@ -610,7 +662,7 @@ def export(
 ):
     """Export collected jobs as JSONL or CSV for AI workflow analysis.
 
-    Exported data contains only database facts — no salary estimation or
+    Exported data contains only database facts; no salary estimation or
     inferred fields.  Designed for use by external AI workflow prompts.
     """
 
@@ -725,7 +777,7 @@ def details_backfill(
     Scans every stored ``Job`` row and canonicalises its
     ``responsibilities``, ``requirements``, and ``detail_completeness``
     using recognised section headings.  Existing explicit values are never
-    overwritten — only missing fields may be inferred.
+    overwritten; only missing fields may be inferred.
 
     By default this runs as a dry-run preview that shows what would change.
     Pass ``--apply`` to persist the changes.
@@ -818,9 +870,49 @@ def weekly(
         "--date",
         help="Report date in YYYY-MM-DD format. Defaults to today.",
     ),
+    logs_dir: str = typer.Option(
+        None,
+        "--logs-dir",
+        help="Directory for per-attempt log and summary files "
+        "(defaults to <reports-dir>/logs).",
+    ),
+    lock_path: str = typer.Option(
+        None,
+        "--lock-path",
+        help="Explicit path for the process lock file "
+        "(defaults to <db-path>.weekly.lock).",
+    ),
+    stale_lock_hours: float = typer.Option(
+        24.0,
+        "--stale-lock-hours",
+        callback=_validate_positive,
+        help="Hours after which a malformed or foreign lock is stale.",
+    ),
 ):
-    """Run collect, export, and local weekly analysis as one workflow."""
+    """Run collect, export, and local weekly analysis as one workflow.
+
+    Uses an exclusive process lock to prevent concurrent weekly runs on
+    the same database.  A per-attempt log and structured summary are
+    written under ``--logs-dir``.
+    """
+    import os as _os
+    import traceback as _traceback
+
     from findjobs.analysis import run_weekly_analysis
+    from findjobs.paths import get_default_db_path
+    import time as _time
+    import uuid as _uuid
+
+    from findjobs.weekly_runtime import (
+        LockHeldError,
+        ProcessLock,
+        TeeEmitter,
+        build_summary_dict,
+        resolve_lock_path,
+        resolve_logs_dir,
+        update_latest_summary,
+        write_summary_file,
+    )
 
     reports = Path(reports_dir)
     weekly_dir = reports / "weekly"
@@ -829,84 +921,333 @@ def weekly(
     csv_path = weekly_dir / "jobs.csv"
     ai_security_path = weekly_dir / "ai-security.jsonl"
 
-    if live:
-        typer.echo("Collecting live jobs...")
-        _run_live_collect(db_path, typer.echo)
-    else:
-        typer.echo("Skipping live collection.")
+    # -- Resolve paths ------------------------------------------------
+    resolved_db = Path(db_path) if db_path else get_default_db_path()
+    logs_dir_path = resolve_logs_dir(reports, logs_dir)
+    logs_dir_path.mkdir(parents=True, exist_ok=True)
 
-    typer.echo("Exporting job facts...")
-    # Summary exports for existing aggregation compatibility.
-    _export_file(
-        db_path=db_path,
-        output_path=jobs_path,
-        fmt="jsonl",
-        since=since,
-        detail_level="summary",
-    )
-    _export_file(
-        db_path=db_path,
-        output_path=csv_path,
-        fmt="csv",
-        since=since,
-        detail_level="summary",
-    )
-    _export_file(
-        db_path=db_path,
-        output_path=ai_security_path,
-        fmt="jsonl",
-        since=since,
-        tag="AI Security",
-        detail_level="summary",
-    )
+    run_start = _utc_now()
+    timestamp = run_start.strftime("%Y%m%d_%H%M%S")
+    pid = _os.getpid()
+    run_id = str(_uuid.uuid4())
+    short_id = run_id[:8]
+    log_path = logs_dir_path / f"weekly_{timestamp}_{pid}_{short_id}.log"
+    summary_path = logs_dir_path / f"weekly_{timestamp}_{pid}_{short_id}.summary.json"
 
-    # Full export for deterministic recommendation engine.
-    full_jsonl_path = match_dir / "jobs-full.jsonl"
-    _export_file(
-        db_path=db_path,
-        output_path=full_jsonl_path,
-        fmt="jsonl",
-        since=since,
-        detail_level="full",
-    )
-    typer.echo(f"  full_input: {full_jsonl_path}")
-
-    typer.echo("Running local analysis...")
-    result = run_weekly_analysis(
-        jobs_path=jobs_path,
+    emitter = TeeEmitter(log_path, typer.echo)
+    lock = ProcessLock(
+        resolve_lock_path(db_path, lock_path),
+        db_path=resolved_db,
         reports_dir=reports,
-        run_date=run_date,
-        profile_path=Path(profile),
+        log_path=log_path,
+        stale_hours=stale_lock_hours,
     )
 
-    # Deterministic recommendations from the full export.
-    profile_resolved = Path(profile)
-    rec_md = match_dir / "recommendations.md"
-    rec_json = match_dir / "recommendations.json"
-    if profile_resolved.exists():
-        from findjobs.weekly_recommendation import run_exported_recommendations
+    start_mono = _time.monotonic()
+    errors_list: list[str] = []
+    acquired_lock = False
+    status = "succeeded"
+    exit_code = 0
+    workflow_exc: BaseException | None = None
+    reporting_failed = False
 
-        rec_output = run_exported_recommendations(
-            jobs_path=full_jsonl_path,
-            profile_path=profile_resolved,
-            markdown_output=rec_md,
-            json_output=rec_json,
+    # -- Acquire lock ------------------------------------------------
+    try:
+        lock.acquire()
+        acquired_lock = True
+    except LockHeldError as e:
+        blocked_error = _shorten_error(str(e), 240)
+        typer.echo(str(e), err=True)
+        summary = build_summary_dict(
+            run_id=run_id,
+            status="blocked",
+            exit_code=2,
+            started_at=run_start.isoformat(),
+            duration_seconds=0.0,
+            live=live,
+            db_path=str(resolved_db),
+            reports_dir=str(reports),
+            lock_path=str(lock.lock_path),
+            log_path=str(log_path),
+            errors=[blocked_error],
         )
-        typer.echo(f"  recommendations: {rec_output.markdown_output}")
-        typer.echo(f"  recommendations_json: {rec_output.json_output}")
+        try:
+            try:
+                emitter.write_log(str(e))
+            except Exception as log_exc:
+                typer.echo(
+                    "  warning: blocked-attempt log write failed: "
+                    + _shorten_error(str(log_exc), 160),
+                    err=True,
+                )
+            try:
+                write_summary_file(summary, summary_path)
+            except Exception as summary_exc:
+                typer.echo(
+                    "  warning: blocked-attempt summary write failed: "
+                    + _shorten_error(str(summary_exc), 160),
+                    err=True,
+                )
+        finally:
+            try:
+                emitter.close()
+            except Exception as close_exc:
+                typer.echo(
+                    "  warning: blocked-attempt log close failed: "
+                    + _shorten_error(str(close_exc), 160),
+                    err=True,
+                )
+        raise typer.Exit(2)
+    except BaseException as acquire_exc:
+        acquire_error = _shorten_error(str(acquire_exc), 240)
+        try:
+            write_summary_file(
+                build_summary_dict(
+                    run_id=run_id,
+                    status="failed",
+                    exit_code=1,
+                    started_at=run_start.isoformat(),
+                    duration_seconds=_time.monotonic() - start_mono,
+                    live=live,
+                    db_path=str(resolved_db),
+                    reports_dir=str(reports),
+                    lock_path=str(lock.lock_path),
+                    log_path=str(log_path),
+                    errors=[acquire_error],
+                ),
+                summary_path,
+            )
+        except Exception as summary_exc:
+            typer.echo(
+                "  warning: lock-failure summary write failed: "
+                + _shorten_error(str(summary_exc), 160),
+                err=True,
+            )
+        finally:
+            try:
+                emitter.close()
+            except Exception:
+                pass
+        if isinstance(acquire_exc, KeyboardInterrupt):
+            raise
+        typer.echo(f"Weekly workflow failed: {acquire_error}", err=True)
+        raise typer.Exit(1) from acquire_exc
 
-    typer.echo(f"Weekly workflow complete: {result.total_jobs} jobs")
-    typer.echo(f"  summary: {result.summary_path}")
-    typer.echo(f"  ai_security: {result.ai_security_path}")
-    typer.echo(f"  manifest: {result.manifest_path}")
-    if result.profile_needed_path is not None:
-        typer.echo(f"  profile_needed: {result.profile_needed_path}")
-    if result.matches_path is not None:
-        typer.echo(f"  matches: {result.matches_path}")
-    if result.priorities_path is not None:
-        typer.echo(f"  priorities: {result.priorities_path}")
-    if result.career_advice_path is not None:
-        typer.echo(f"  career_advice: {result.career_advice_path}")
+    def _record_reporting_error(label: str, exc: BaseException) -> str:
+        nonlocal reporting_failed, status, exit_code
+        message = _shorten_error(f"{label}: {exc}", 240)
+        if message not in errors_list:
+            errors_list.append(message)
+        reporting_failed = True
+        status = "failed"
+        exit_code = 1
+        try:
+            emitter.write_log(f"  warning: {message}")
+        except Exception:
+            pass
+        try:
+            typer.echo(f"  warning: {message}", err=True)
+        except Exception:
+            pass
+        return message
+
+    def _current_summary() -> dict:
+        return build_summary_dict(
+            run_id=run_id,
+            status=status,
+            exit_code=exit_code,
+            started_at=run_start.isoformat(),
+            duration_seconds=_time.monotonic() - start_mono,
+            live=live,
+            db_path=str(resolved_db),
+            reports_dir=str(reports),
+            lock_path=str(lock.lock_path),
+            log_path=str(log_path),
+            errors=errors_list,
+        )
+
+    def _persist_current_summary() -> bool:
+        try:
+            write_summary_file(_current_summary(), summary_path)
+            return True
+        except Exception as summary_exc:
+            _record_reporting_error("summary write failed", summary_exc)
+            return False
+
+    def _update_current_latest() -> bool:
+        try:
+            update_latest_summary(
+                summary_path,
+                logs_dir_path / "weekly-latest.json",
+            )
+            return True
+        except Exception as latest_exc:
+            _record_reporting_error("latest summary update failed", latest_exc)
+            _persist_current_summary()
+            return False
+
+    # -- Main workflow body ------------------------------------------
+    try:
+        try:
+            emitter.emit(f"  logs: {log_path}")
+
+            if live:
+                emitter.emit("Collecting live jobs...")
+                collect_result = _run_live_collect(db_path, emitter.emit)
+                if collect_result.failed > 0:
+                    errors_list.append(
+                        f"{collect_result.failed}/{collect_result.total}"
+                        " collection source(s) failed"
+                    )
+                    emitter.emit(
+                        f"Collection: {collect_result.succeeded}/"
+                        f"{collect_result.total} sources succeeded, "
+                        f"{collect_result.failed} failed"
+                    )
+                    for sf in collect_result.failures:
+                        errors_list.append(f"  {sf.source_name}: {sf.error}")
+                        emitter.emit(f"  - {sf.source_name}: {sf.error}")
+            else:
+                emitter.emit("Skipping live collection.")
+
+            emitter.emit("Exporting job facts...")
+            _export_file(
+                db_path=db_path,
+                output_path=jobs_path,
+                fmt="jsonl",
+                since=since,
+                detail_level="summary",
+            )
+            _export_file(
+                db_path=db_path,
+                output_path=csv_path,
+                fmt="csv",
+                since=since,
+                detail_level="summary",
+            )
+            _export_file(
+                db_path=db_path,
+                output_path=ai_security_path,
+                fmt="jsonl",
+                since=since,
+                tag="AI Security",
+                detail_level="summary",
+            )
+
+            full_jsonl_path = match_dir / "jobs-full.jsonl"
+            _export_file(
+                db_path=db_path,
+                output_path=full_jsonl_path,
+                fmt="jsonl",
+                since=since,
+                detail_level="full",
+            )
+            emitter.emit(f"  full_input: {full_jsonl_path}")
+
+            emitter.emit("Running local analysis...")
+            analysis_result = run_weekly_analysis(
+                jobs_path=jobs_path,
+                reports_dir=reports,
+                run_date=run_date,
+                profile_path=Path(profile),
+            )
+
+            profile_resolved = Path(profile)
+            rec_md = match_dir / "recommendations.md"
+            rec_json = match_dir / "recommendations.json"
+            if profile_resolved.exists():
+                from findjobs.weekly_recommendation import (
+                    run_exported_recommendations,
+                )
+
+                rec_output = run_exported_recommendations(
+                    jobs_path=full_jsonl_path,
+                    profile_path=profile_resolved,
+                    markdown_output=rec_md,
+                    json_output=rec_json,
+                )
+                emitter.emit(f"  recommendations: {rec_output.markdown_output}")
+                emitter.emit(f"  recommendations_json: {rec_output.json_output}")
+
+            emitter.emit(f"Weekly workflow complete: {analysis_result.total_jobs} jobs")
+            emitter.emit(f"  summary: {analysis_result.summary_path}")
+            emitter.emit(f"  ai_security: {analysis_result.ai_security_path}")
+            emitter.emit(f"  manifest: {analysis_result.manifest_path}")
+            if analysis_result.profile_needed_path is not None:
+                emitter.emit(f"  profile_needed: {analysis_result.profile_needed_path}")
+            if analysis_result.matches_path is not None:
+                emitter.emit(f"  matches: {analysis_result.matches_path}")
+            if analysis_result.priorities_path is not None:
+                emitter.emit(f"  priorities: {analysis_result.priorities_path}")
+            if analysis_result.career_advice_path is not None:
+                emitter.emit(f"  career_advice: {analysis_result.career_advice_path}")
+
+            status = "failed" if errors_list else "succeeded"
+            exit_code = 1 if errors_list else 0
+
+        except BaseException as exc:
+            workflow_exc = exc
+            bounded = _shorten_error(str(exc), 240)
+            errors_list.append(
+                bounded
+                if not isinstance(exc, KeyboardInterrupt)
+                else "KeyboardInterrupt"
+            )
+            try:
+                emitter.write_log(_traceback.format_exc().rstrip())
+            except Exception as log_exc:
+                _record_reporting_error("traceback log write failed", log_exc)
+            status = "failed"
+            exit_code = 1  # Summary always 1; KeyboardInterrupt re-raised later
+
+        # -- Write summary file --------------------------------------
+        summary_written = _persist_current_summary()
+
+        # -- Update latest summary (not for blocked) ------------------
+        if acquired_lock and summary_written:
+            _update_current_latest()
+
+        # -- Emit final paths to console/log --------------------------
+        try:
+            emitter.emit(f"  log: {log_path}")
+            emitter.emit(f"  summary: {summary_path}")
+        except Exception as emit_exc:
+            _record_reporting_error("final path emit failed", emit_exc)
+            if _persist_current_summary():
+                _update_current_latest()
+
+    except BaseException:
+        # Unexpected error in summary/latest/emit phase.
+        # Will propagate after finally cleanup.
+        if exit_code == 0:
+            exit_code = 1
+        raise
+    finally:
+        if acquired_lock:
+            try:
+                if lock.release() is False:
+                    raise RuntimeError("process lock token changed before release")
+            except (OSError, json.JSONDecodeError, RuntimeError) as release_exc:
+                _record_reporting_error("process lock release failed", release_exc)
+                if _persist_current_summary():
+                    _update_current_latest()
+        try:
+            emitter.close()
+        except Exception as close_exc:
+            _record_reporting_error("weekly log close failed", close_exc)
+            if _persist_current_summary():
+                _update_current_latest()
+
+    # -- Re-raise KeyboardInterrupt (after finally cleanup) ----------
+    if isinstance(workflow_exc, KeyboardInterrupt):
+        raise workflow_exc
+
+    # -- Preserve original workflow error if reporting also failed ----
+    if workflow_exc is not None and reporting_failed:
+        raise workflow_exc
+
+    if exit_code:
+        raise typer.Exit(exit_code)
 
 
 @analyze_app.command()
@@ -962,9 +1303,7 @@ def install(
         "--task-name",
         help="Windows Task Scheduler task name.",
     ),
-    time: str = typer.Option(
-        "09:00", "--time", help="Time to run (HH:MM) each week."
-    ),
+    time: str = typer.Option("09:00", "--time", help="Time to run (HH:MM) each week."),
     db_path: str = typer.Option(
         None, "--db-path", help="Path to the SQLite database file."
     ),
@@ -1079,7 +1418,9 @@ def relevance_audit(
         None, "--db-path", help="Path to the SQLite database file."
     ),
     sample_size: int = typer.Option(
-        10, "--sample-size", help="Number of deterministic samples per projected status."
+        10,
+        "--sample-size",
+        help="Number of deterministic samples per projected status.",
     ),
     seed: int = typer.Option(
         20260710, "--seed", help="PRNG seed for deterministic sampling."
@@ -1133,9 +1474,10 @@ def relevance_audit(
     if report.projected_tags:
         typer.echo("  projected tags:")
         for status, counts in sorted(report.projected_tags.items()):
-            rendered = ", ".join(
-                f"{tag}={count}" for tag, count in sorted(counts.items())
-            ) or "none"
+            rendered = (
+                ", ".join(f"{tag}={count}" for tag, count in sorted(counts.items()))
+                or "none"
+            )
             typer.echo(f"    {status}: {rendered}")
 
     # Sampled rows
@@ -1214,7 +1556,7 @@ def recommend(
 
     Loads the privacy-safe profile, runs deterministic scoring, and
     produces a report in Markdown or JSON.  The database is **never**
-    modified — no facts are committed, flushed, or written.
+    modified; no facts are committed, flushed, or written.
     """
     # Validate format before any side-effect operations.
     fmt = format.strip().lower()
