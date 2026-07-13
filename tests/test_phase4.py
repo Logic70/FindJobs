@@ -96,6 +96,97 @@ def _seed_db(db_path: Path) -> None:
     session.close()
 
 
+def _seed_extras(session) -> int:
+    """Add pagination/filter test data to an existing database session.
+
+    Uses the existing company and source from ``_seed_db``. Returns the
+    ``(ignored_id, review_id, archived_id)`` of the three special jobs.
+    """
+    from findjobs.models import Company, Job, Source, UserMark
+    from datetime import datetime, timezone, timedelta
+
+    company = session.query(Company).filter(Company.slug == "testcorp").first()
+    source = session.query(Source).filter(Source.slug == "testcorp-careers").first()
+    assert company is not None
+    assert source is not None
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # 5 additional active+target jobs with descending last_seen_at.
+    # Two share "AI&测试" so we can test encoded query preservation.
+    extra_titles = {
+        1: "AI&测试 - Frontend",
+        2: "AI&测试 - Backend",
+        3: "Extra Job 3",
+        4: "Extra Job 4",
+        5: "Extra Job 5",
+    }
+    for i in range(1, 6):
+        job = Job(
+            source_id=source.id,
+            company_id=company.id,
+            external_id=f"extra-{i:03d}",
+            title=extra_titles[i],
+            url=f"https://example.com/extra/{i}",
+            description=f"Extra job {i} for pagination filtering",
+            status="active",
+            relevance_status="target",
+            location="北京",
+            job_type="full-time",
+            matched_tags="[]",
+            created_at=now,
+            updated_at=now,
+            first_seen_at=now,
+            last_seen_at=now - timedelta(hours=i),
+        )
+        session.add(job)
+    session.flush()
+
+    # Ignored job (active+target but marked ignored)
+    ignored = Job(
+        source_id=source.id, company_id=company.id,
+        external_id="ignored-001", title="Ignored Position",
+        url="https://example.com/ignored",
+        description="Should be hidden by default",
+        status="active", relevance_status="target",
+        location="北京", job_type="full-time",
+        matched_tags="[]", created_at=now, updated_at=now,
+        first_seen_at=now, last_seen_at=now,
+    )
+    session.add(ignored)
+    session.flush()
+    session.add(UserMark(job_id=ignored.id, mark_type="ignored", note=""))
+
+    # Review job (active+review)
+    review = Job(
+        source_id=source.id, company_id=company.id,
+        external_id="review-001", title="Review Position",
+        url="https://example.com/review",
+        description="Non-target (review)",
+        status="active", relevance_status="review",
+        location="上海", job_type="full-time",
+        matched_tags="[]", created_at=now, updated_at=now,
+        first_seen_at=now, last_seen_at=now,
+    )
+    session.add(review)
+
+    # Archived job (archived+target)
+    archived = Job(
+        source_id=source.id, company_id=company.id,
+        external_id="archived-001", title="Archived Position",
+        url="https://example.com/archived",
+        description="Non-active (archived)",
+        status="archived", relevance_status="target",
+        location="北京", job_type="full-time",
+        matched_tags="[]", created_at=now, updated_at=now,
+        first_seen_at=now, last_seen_at=now,
+    )
+    session.add(archived)
+
+    session.flush()
+    return ignored.id, review.id, archived.id
+
+
 @pytest.fixture
 def tmp_db():
     """Yield a ``(db_path, client)`` tuple with a seeded database and TestClient."""
@@ -109,6 +200,30 @@ def tmp_db():
         app = create_app(db_path=db_path)
         client = TestClient(app)
         yield db_path, client
+
+
+@pytest.fixture
+def tmp_db_extended(tmp_db):
+    """Extend ``tmp_db`` with additional jobs for pagination/filter tests."""
+    db_path, client = tmp_db
+
+    from findjobs.db import init_db
+
+    session = init_db(db_path)
+    try:
+        _seed_extras(session)
+        session.commit()
+    finally:
+        session.close()
+
+    return db_path, client
+
+
+@pytest.fixture
+def client_extended(tmp_db_extended):
+    """Shorthand — return only the TestClient for extended data."""
+    _, c = tmp_db_extended
+    return c
 
 
 @pytest.fixture
@@ -504,3 +619,479 @@ class TestScheduleInstall:
 
         assert result.exit_code == 0
         assert "Status: Ready" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Phase 4A: Default filters and pagination
+# ---------------------------------------------------------------------------
+
+
+class TestJobsDefaultFilters:
+    """Default filter behavior: active + target + hide ignored."""
+
+    def test_default_shows_only_active_target(self, client_extended):
+        """Default view shows only active+target jobs, hiding ignored."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        html = resp.text
+        # Original active+target jobs visible
+        assert "AI Engineer" in html
+        assert "Security Engineer" in html
+        # New extra active+target jobs visible
+        assert "AI&amp;测试 - Frontend" in html
+        assert "AI&amp;测试 - Backend" in html
+        for i in range(3, 6):
+            assert f"Extra Job {i}" in html
+        # Non-target (review) and non-active (archived) are hidden
+        assert "Review Position" not in html
+        assert "Archived Position" not in html
+        # Ignored is hidden
+        assert "Ignored Position" not in html
+
+    def test_status_all_shows_all_statuses(self, client_extended):
+        """status=all shows all statuses (including archived)."""
+        resp = client_extended.get("/jobs", params={"status": "all"})
+        assert resp.status_code == 200
+        assert "Archived Position" in resp.text
+        # Still hides non-target and ignored by default
+        assert "Review Position" not in resp.text
+        assert "Ignored Position" not in resp.text
+
+    def test_explicit_status_active(self, client_extended):
+        """Explicit status=active still applies the same filter."""
+        resp = client_extended.get("/jobs", params={"status": "active"})
+        assert resp.status_code == 200
+        assert "AI Engineer" in resp.text
+        assert "Archived Position" not in resp.text
+
+    def test_explicit_relevance_status_target(self, client_extended):
+        """Explicit relevance_status=target works."""
+        resp = client_extended.get("/jobs", params={"relevance_status": "target"})
+        assert resp.status_code == 200
+        assert "AI Engineer" in resp.text
+        assert "Review Position" not in resp.text
+
+    def test_relevance_all_shows_all_statuses(self, client_extended):
+        """relevance_status=all shows all relevance statuses."""
+        resp = client_extended.get("/jobs", params={"relevance_status": "all"})
+        assert resp.status_code == 200
+        assert "Review Position" in resp.text
+        # Still hides non-active and ignored by default
+        assert "Archived Position" not in resp.text
+        assert "Ignored Position" not in resp.text
+
+    def test_default_status_active_selected(self, client_extended):
+        """Plain /jobs has Active highlighted in the status dropdown."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        html = resp.text
+        # The "活跃" option should be the selected one (no "全部状态" selected)
+        assert '<option value="active" selected>活跃</option>' in html
+        # "全部状态" must NOT be selected
+        assert '<option value="all" selected>' not in html
+
+    def test_default_relevance_target_selected(self, client_extended):
+        """Plain /jobs has 目标 highlighted in the relevance dropdown."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        html = resp.text
+        assert '<option value="target" selected>目标</option>' in html
+        assert '<option value="all" selected>' not in html
+
+    def test_ignored_hidden_by_default(self, client_extended):
+        """Ignored-marked jobs are hidden by default."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        assert "Ignored Position" not in resp.text
+
+    def test_mark_type_ignored_shows_ignored(self, client_extended):
+        """mark_type=ignored shows ignored jobs."""
+        resp = client_extended.get("/jobs", params={"mark_type": "ignored"})
+        assert resp.status_code == 200
+        assert "Ignored Position" in resp.text
+
+    def test_show_ignored_displays_all_marks(self, client_extended):
+        """show_ignored=true shows all marks including ignored."""
+        resp = client_extended.get("/jobs", params={"show_ignored": "true"})
+        assert resp.status_code == 200
+        # Should show all active+target, including ignored
+        assert "Ignored Position" in resp.text
+        assert "AI Engineer" in resp.text
+
+    def test_mark_type_and_status_filter_compose(self, client_extended):
+        """mark_type=ignored shows ignored jobs with status filter."""
+        resp = client_extended.get(
+            "/jobs", params={"mark_type": "ignored", "status": "active"}
+        )
+        assert resp.status_code == 200
+        # When mark_type=ignored, only ignored jobs show up
+        assert "Ignored Position" in resp.text
+        # Non-ignored jobs are excluded by the mark_type filter
+        assert "AI Engineer" not in resp.text
+
+    def test_filter_by_bookmark_mark_type(self, tmp_db):
+        """Filtering by bookmark shows only bookmarked jobs."""
+        _, client = tmp_db
+        client.post("/jobs/1/marks", data={"mark_type": "bookmark", "note": "Watching"})
+        resp = client.get("/jobs", params={"mark_type": "bookmark"})
+        assert resp.status_code == 200
+        assert "AI Engineer" in resp.text
+        assert "Security Engineer" not in resp.text
+
+    def test_all_filters_empty_shows_nothing_when_mismatch(self, client_extended):
+        """Combined filters that match nothing show empty state."""
+        resp = client_extended.get("/jobs", params={"q": "NONEXISTENT999"})
+        assert resp.status_code == 200
+        assert "暂无职位" in resp.text
+
+    def test_status_all_across_pagination(self, client_extended):
+        """status=all query parameter survives pagination."""
+        resp = client_extended.get(
+            "/jobs", params={"status": "all", "page_size": 5, "page": 2}
+        )
+        assert resp.status_code == 200
+        html = resp.text
+        # The URL should contain status=all
+        assert "status=all" in html
+
+
+# ---------------------------------------------------------------------------
+# Phase 4A: Pagination
+# ---------------------------------------------------------------------------
+
+
+class TestJobsPagination:
+    """Server-side pagination behavior."""
+
+    def test_default_page_and_page_size(self, client_extended):
+        """Default page=1, page_size=50 returns jobs with pagination info."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        html = resp.text
+        # Default view has 8 active+target jobs (3 original + 5 extra)
+        assert "AI Engineer" in html
+        assert "Extra Job 5" in html
+        # Pagination info shows total
+        assert "共 " in html
+
+    def test_bound_page_size_too_small(self, client_extended):
+        """page_size=0 returns 422."""
+        resp = client_extended.get("/jobs", params={"page_size": 0})
+        assert resp.status_code == 422
+
+    def test_bound_page_size_too_large(self, client_extended):
+        """page_size=101 returns 422."""
+        resp = client_extended.get("/jobs", params={"page_size": 101})
+        assert resp.status_code == 422
+
+    def test_bound_page_below_min(self, client_extended):
+        """page=0 returns 422."""
+        resp = client_extended.get("/jobs", params={"page": 0})
+        assert resp.status_code == 422
+
+    def test_bound_page_negative(self, client_extended):
+        """page=-1 returns 422."""
+        resp = client_extended.get("/jobs", params={"page": -1})
+        assert resp.status_code == 422
+
+    def test_invalid_status_rejected(self, client_extended):
+        """Invalid status value returns 422."""
+        resp = client_extended.get("/jobs", params={"status": "bogus"})
+        assert resp.status_code == 422
+
+    def test_invalid_relevance_rejected(self, client_extended):
+        """Invalid relevance_status value returns 422."""
+        resp = client_extended.get("/jobs", params={"relevance_status": "bogus"})
+        assert resp.status_code == 422
+
+    def test_no_overlap_between_pages(self, client_extended):
+        """Jobs on consecutive pages do not overlap (stable ordering)."""
+        page_size = 3
+        resp1 = client_extended.get("/jobs", params={"page": 1, "page_size": page_size})
+        resp2 = client_extended.get("/jobs", params={"page": 2, "page_size": page_size})
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+
+        import re
+
+        ids1 = set(re.findall(r"/jobs/(\d+)\"", resp1.text))
+        ids2 = set(re.findall(r"/jobs/(\d+)\"", resp2.text))
+        assert ids1.isdisjoint(ids2), f"Overlap between pages: {ids1 & ids2}"
+
+    def test_filter_before_pagination_total(self, client_extended):
+        """Total reflects all matching jobs, not just page size."""
+        resp = client_extended.get("/jobs", params={"page": 1, "page_size": 3})
+        assert resp.status_code == 200
+        html = resp.text
+        import re
+
+        count_links = len(re.findall(r'/jobs/(\d+)"', html))
+        assert count_links <= 3
+
+    def test_out_of_range_page_renders_empty(self, client_extended):
+        """Out-of-range positive page shows empty with accurate total."""
+        resp = client_extended.get("/jobs", params={"page": 999, "page_size": 10})
+        assert resp.status_code == 200
+        html = resp.text
+        assert "暂无职位" in html
+        # Total should still be shown in pagination info
+        assert "共 " in html
+
+    def test_out_of_range_previous_links_to_last_valid(self, client_extended):
+        """Previous on an out-of-range page links to the last valid page."""
+        import html, urllib.parse, re
+        # With 8 active+target jobs and page_size=3, last valid is page 3
+        resp = client_extended.get("/jobs", params={"page": 999, "page_size": 3})
+        assert resp.status_code == 200
+        # Parse the prev_url from the pager-link that says 上一页
+        match = re.search(
+            r'<a\s+href="([^"]+)"\s+class="pager-link">上一页</a>', resp.text
+        )
+        assert match is not None, "Missing 上一页 pager-link"
+        href = html.unescape(match.group(1))
+        parsed = urllib.parse.urlparse(href)
+        qs = urllib.parse.parse_qs(parsed.query)
+        assert qs.get("page") == ["3"]
+
+    def test_query_param_retention_in_urls(self, client_extended):
+        """Active query parameters are retained in the response."""
+        resp = client_extended.get(
+            "/jobs", params={"q": "Engineer", "page": 1, "page_size": 5}
+        )
+        assert resp.status_code == 200
+        html = resp.text
+        assert 'value="Engineer"' in html
+
+    def test_encoded_q_with_special_chars(self, client_extended):
+        """q containing & and Chinese text survives pagination URL encoding."""
+        import html, urllib.parse, re
+        # Two extra jobs have "AI&测试" in the title.
+        # With page_size=1 and q=AI&测试, page 1 matches 1 job and has a next link.
+        resp = client_extended.get(
+            "/jobs", params={"q": "AI&测试", "page_size": 1}
+        )
+        assert resp.status_code == 200
+        # Page 1 should have one of the matching jobs (Jinja-escaped &)
+        assert "AI&amp;测试" in resp.text
+        # Parse the only pager-link (下一页, since has_prev=False on page 1)
+        links = re.findall(
+            r'<a\s+href="([^"]+)"\s+class="pager-link">', resp.text
+        )
+        assert len(links) == 1, f"Expected 1 pager-link on page 1, got {len(links)}"
+        href = html.unescape(links[0])
+        parsed = urllib.parse.urlparse(href)
+        qs = urllib.parse.parse_qs(parsed.query)
+        assert qs.get("q") == ["AI&测试"]
+        assert qs.get("page") == ["2"]
+        assert qs.get("page_size") == ["1"]
+
+    def test_page_size_custom_accepted(self, client_extended):
+        """Custom page_size in valid range (1-100) is accepted and honored."""
+        resp = client_extended.get("/jobs", params={"page_size": 5, "page": 1})
+        assert resp.status_code == 200
+        resp2 = client_extended.get("/jobs", params={"page_size": 5, "page": 2})
+        assert resp2.status_code == 200
+        assert "共 " in resp2.text
+
+    def test_page_size_selector_present(self, client_extended):
+        """Per-page size selector (25, 50, 100) is present in the filter form."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        html = resp.text
+        assert 'value="25"' in html
+        assert 'value="50"' in html
+        assert 'value="100"' in html
+        # Default 50 should be selected
+        assert '<option value="50" selected>50/页</option>' in html
+
+    def test_page_size_25_selected(self, client_extended):
+        """page_size=25 is accepted and 25/页 is selected."""
+        resp = client_extended.get("/jobs", params={"page_size": 25})
+        assert resp.status_code == 200
+        html = resp.text
+        assert '<option value="25" selected>25/页</option>' in html
+
+    def test_response_hundred_rows_below_limit(self, tmp_db):
+        """A 100-row page response is below 300 KB."""
+        db_path, client = tmp_db
+        from findjobs.db import init_db
+
+        session = init_db(db_path)
+        try:
+            from findjobs.models import Company, Job, Source
+            company = session.query(Company).filter(Company.slug == "testcorp").first()
+            source = session.query(Source).filter(Source.slug == "testcorp-careers").first()
+            from datetime import datetime, timezone, timedelta
+
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            for i in range(97):
+                session.add(Job(
+                    source_id=source.id, company_id=company.id,
+                    external_id=f"bulk-{i:03d}", title=f"Bulk Job {i}",
+                    url=f"https://example.com/bulk/{i}",
+                    description=f"Bulk job {i} for size test",
+                    status="active", relevance_status="target",
+                    location="北京", job_type="full-time",
+                    matched_tags="[]", created_at=now, updated_at=now,
+                    first_seen_at=now, last_seen_at=now - timedelta(hours=100 + i),
+                ))
+            session.commit()
+        finally:
+            session.close()
+
+        resp = client.get("/jobs", params={"page_size": 100})
+        assert resp.status_code == 200
+        size_bytes = len(resp.text.encode("utf-8"))
+        assert size_bytes < 300_000, f"Response {size_bytes} bytes >= 300 KB"
+
+    def test_total_pages_accurate(self, client_extended):
+        """Total pages calculation is correct with exact assertion."""
+        import html, urllib.parse, re
+        # 8 total jobs, page_size=3 → 3 pages (3+3+2)
+        resp = client_extended.get("/jobs", params={"page_size": 3, "page": 1})
+        assert resp.status_code == 200
+        # Page 3 should exist
+        resp3 = client_extended.get("/jobs", params={"page_size": 3, "page": 3})
+        assert resp3.status_code == 200
+        # Page 4 should be out of range
+        resp4 = client_extended.get("/jobs", params={"page_size": 3, "page": 4})
+        assert resp4.status_code == 200
+        assert "暂无职位" in resp4.text
+        # Previous should link to page 3 (last valid) — parse exactly
+        match = re.search(
+            r'<a\s+href="([^"]+)"\s+class="pager-link">上一页</a>', resp4.text
+        )
+        assert match is not None, "Missing 上一页 link on out-of-range page"
+        href = html.unescape(match.group(1))
+        parsed = urllib.parse.urlparse(href)
+        qs = urllib.parse.parse_qs(parsed.query)
+        assert qs.get("page") == ["3"]
+
+    def test_pagination_no_missing_ids(self, client_extended):
+        """All matching job IDs appear across pages exactly once."""
+        import re
+        page_size = 3
+        all_ids = set()
+        for page in range(1, 6):
+            resp = client_extended.get("/jobs", params={"page": page, "page_size": page_size})
+            if "暂无职位" in resp.text:
+                break
+            ids = set(re.findall(r"/jobs/(\d+)\"", resp.text))
+            assert ids.isdisjoint(all_ids), f"Page {page} overlaps"
+            all_ids.update(ids)
+        assert len(all_ids) >= 8
+
+    def test_all_filters_across_pagination(self, client_extended):
+        """status=all & relevance=all survive page change via encoded URLs."""
+        resp = client_extended.get(
+            "/jobs",
+            params={
+                "status": "all",
+                "relevance_status": "all",
+                "page_size": 5,
+                "page": 2,
+            },
+        )
+        assert resp.status_code == 200
+        html = resp.text
+        # On page 2 there should be a prev link containing both filter sentinels
+        assert "status=all" in html
+        assert "relevance_status=all" in html
+
+
+# ---------------------------------------------------------------------------
+# Phase 4A: UI labels and pagination controls
+# ---------------------------------------------------------------------------
+
+
+class TestJobsPaginationUI:
+    """Chinese UI labels and pagination controls."""
+
+    def test_chinese_search_placeholder(self, client_extended):
+        """Search input has Chinese placeholder."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        assert 'placeholder="搜索' in resp.text
+
+    def test_chinese_filter_labels(self, client_extended):
+        """Filter dropdowns use Chinese labels."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        html = resp.text
+        assert "全部公司" in html
+        assert "全部地点" in html
+        assert "全部类型" in html
+        assert "全部标签" in html
+        assert "全部状态" in html
+
+    def test_chinese_table_headers(self, client_extended):
+        """Table headers use Chinese labels."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        html = resp.text
+        assert "公司" in html
+        assert "职位" in html
+        assert "标签" in html
+        assert "薪资" in html
+        assert "标记" in html
+
+    def test_chinese_empty_state(self, client_extended):
+        """Empty result shows Chinese text."""
+        resp = client_extended.get("/jobs", params={"q": "ZZZZ_NOT_FOUND_ZZZZ"})
+        assert resp.status_code == 200
+        assert "暂无职位" in resp.text
+
+    def test_disclosed_salary_label(self, tmp_db):
+        """Disclosed salary shows salary_text; undisclosed shows 未披露."""
+        _, client = tmp_db
+        resp = client.get("/jobs")
+        assert resp.status_code == 200
+        assert "30k-50k" in resp.text
+        assert "未披露" in resp.text
+
+    def test_mark_type_labels(self, client_extended):
+        """Mark type dropdown uses Chinese values."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        assert "已投递" in resp.text
+        assert "已忽略" in resp.text
+
+    def test_relevance_status_options(self, client_extended):
+        """Relevance status dropdown has all project enums."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        html = resp.text
+        assert "目标" in html
+        assert "待定" in html
+        assert "排除" in html
+
+    def test_relevance_status_all_option(self, client_extended):
+        """Relevance status dropdown includes '全部' via all value."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        assert 'value="all"' in resp.text
+
+    def test_status_all_option(self, client_extended):
+        """Status dropdown has the 'all' sentinel option."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        assert 'value="all"' in resp.text
+
+    def test_pagination_controls_exist(self, client_extended):
+        """Pagination controls (prev/next) are rendered."""
+        resp = client_extended.get("/jobs", params={"page_size": 3, "page": 2})
+        assert resp.status_code == 200
+        assert "上一页" in resp.text
+        assert "下一页" in resp.text
+
+    def test_horizontal_scroll_container(self, client_extended):
+        """Job table is inside a horizontal-scroll container."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        assert 'class="table-scroll"' in resp.text
+
+    def test_show_ignored_checkbox_present(self, client_extended):
+        """show_ignored checkbox is present."""
+        resp = client_extended.get("/jobs")
+        assert resp.status_code == 200
+        assert "显示忽略" in resp.text

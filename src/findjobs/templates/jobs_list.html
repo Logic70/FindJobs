@@ -1,77 +1,94 @@
 {% extends "base.html" %}
-{% block title %}Jobs{% endblock %}
+{% block title %}职位{% endblock %}
 {% block body %}
 
 <form method="get" class="filters">
-    <input name="q" placeholder="Search title…" value="{{ current.q }}" class="filter-input">
+    <input name="q" placeholder="搜索职位…" value="{{ current.q }}" class="filter-input">
     <select name="company">
-        <option value="">All companies</option>
+        <option value="">全部公司</option>
         {% for c in filters.companies %}
         <option value="{{ c.slug }}" {% if current.company == c.slug %}selected{% endif %}>{{ c.name }}</option>
         {% endfor %}
     </select>
     <select name="location">
-        <option value="">All locations</option>
+        <option value="">全部地点</option>
         {% for loc in filters.locations %}
         <option value="{{ loc }}" {% if current.location == loc %}selected{% endif %}>{{ loc }}</option>
         {% endfor %}
     </select>
     <select name="job_type">
-        <option value="">All types</option>
+        <option value="">全部类型</option>
         {% for jt in filters.job_types %}
         <option value="{{ jt }}" {% if current.job_type == jt %}selected{% endif %}>{{ jt }}</option>
         {% endfor %}
     </select>
     <select name="tag">
-        <option value="">All tags</option>
+        <option value="">全部标签</option>
         {% for t in filters.tags %}
         <option value="{{ t }}" {% if current.tag == t %}selected{% endif %}>{{ t }}</option>
         {% endfor %}
     </select>
     <select name="status">
-        <option value="">All statuses</option>
-        <option value="active" {% if current.status == "active" %}selected{% endif %}>Active</option>
-        <option value="archived" {% if current.status == "archived" %}selected{% endif %}>Archived</option>
+        <option value="all" {% if current.effective_status == "all" %}selected{% endif %}>全部状态</option>
+        <option value="active" {% if current.effective_status == "active" %}selected{% endif %}>活跃</option>
+        <option value="missing" {% if current.effective_status == "missing" %}selected{% endif %}>缺失</option>
+        <option value="archived" {% if current.effective_status == "archived" %}selected{% endif %}>归档</option>
+    </select>
+    <select name="relevance_status">
+        <option value="all" {% if current.effective_relevance_status == "all" %}selected{% endif %}>全部相关性</option>
+        <option value="target" {% if current.effective_relevance_status == "target" %}selected{% endif %}>目标</option>
+        <option value="review" {% if current.effective_relevance_status == "review" %}selected{% endif %}>待定</option>
+        <option value="excluded" {% if current.effective_relevance_status == "excluded" %}selected{% endif %}>排除</option>
     </select>
     <select name="salary_disclosed">
-        <option value="">Salary: Any</option>
-        <option value="true" {% if current.salary_disclosed == "true" %}selected{% endif %}>Disclosed</option>
-        <option value="false" {% if current.salary_disclosed == "false" %}selected{% endif %}>Undisclosed</option>
+        <option value="">薪资</option>
+        <option value="true" {% if current.salary_disclosed == "true" %}selected{% endif %}>已披露</option>
+        <option value="false" {% if current.salary_disclosed == "false" %}selected{% endif %}>未披露</option>
     </select>
     <select name="mark_type">
-        <option value="">All marks</option>
-        <option value="bookmark" {% if current.mark_type == "bookmark" %}selected{% endif %}>Bookmarked</option>
-        <option value="applied" {% if current.mark_type == "applied" %}selected{% endif %}>Applied</option>
-        <option value="ignored" {% if current.mark_type == "ignored" %}selected{% endif %}>Ignored</option>
+        <option value="">全部标记</option>
+        <option value="bookmark" {% if current.mark_type == "bookmark" %}selected{% endif %}>书签</option>
+        <option value="applied" {% if current.mark_type == "applied" %}selected{% endif %}>已投递</option>
+        <option value="ignored" {% if current.mark_type == "ignored" %}selected{% endif %}>已忽略</option>
     </select>
-    <button type="submit">Filter</button>
-    <a href="/jobs" class="clear">Clear</a>
+    <label class="filter-checkbox">
+        <input type="checkbox" name="show_ignored" value="true" {% if current.show_ignored %}checked{% endif %}>
+        显示忽略
+    </label>
+    <select name="page_size">
+        <option value="25" {% if page_size == "25" %}selected{% endif %}>25/页</option>
+        <option value="50" {% if page_size == "50" %}selected{% endif %}>50/页</option>
+        <option value="100" {% if page_size == "100" %}selected{% endif %}>100/页</option>
+    </select>
+    <button type="submit">筛选</button>
+    <a href="/jobs" class="clear">清除</a>
 </form>
 
+<div class="table-scroll">
 {% if jobs %}
 <table>
     <thead>
     <tr>
-        <th>Company</th>
-        <th>Title</th>
-        <th>Location</th>
-        <th>Type</th>
-        <th>Tags</th>
-        <th>Salary</th>
-        <th>Status</th>
-        <th>First Seen</th>
-        <th>Last Seen</th>
-        <th>Marks</th>
+        <th>公司</th>
+        <th>职位</th>
+        <th>地点</th>
+        <th>类型</th>
+        <th>标签</th>
+        <th>薪资</th>
+        <th>状态</th>
+        <th>首次发现</th>
+        <th>最近发现</th>
+        <th>标记</th>
     </tr>
     </thead>
     <tbody>
     {% for job in jobs %}
     <tr>
         <td>{{ job.company.name if job.company else "" }}</td>
-        <td><a href="/jobs/{{ job.id }}">{{ job.title }}</a></td>
-        <td>{{ job.location }}</td>
+        <td class="cell-title"><a href="/jobs/{{ job.id }}">{{ job.title }}</a></td>
+        <td class="cell-location">{{ job.location }}</td>
         <td>{{ job.job_type }}</td>
-        <td>{{ parse_tags(job.matched_tags) | join(", ") }}</td>
+        <td class="cell-tags">{{ parse_tags(job.matched_tags) | join(", ") }}</td>
         <td>{{ "未披露" if not job.salary_disclosed else job.salary_text }}</td>
         <td>{{ job.status }}</td>
         <td>{{ fmt_dt(job.first_seen_at) }}</td>
@@ -82,7 +99,24 @@
     </tbody>
 </table>
 {% else %}
-<p class="empty">No jobs found.</p>
+<p class="empty">暂无职位</p>
+{% endif %}
+</div>
+
+{% if pagination %}
+<div class="pager">
+    <span class="pager-info">共 {{ pagination.total }} 个职位，第 {{ pagination.page }}/{{ pagination.total_pages }} 页</span>
+    {% if pagination.total_pages > 1 %}
+    <span class="pager-nav">
+        {% if pagination.prev_url %}
+        <a href="{{ pagination.prev_url }}" class="pager-link">上一页</a>
+        {% endif %}
+        {% if pagination.next_url %}
+        <a href="{{ pagination.next_url }}" class="pager-link">下一页</a>
+        {% endif %}
+    </span>
+    {% endif %}
+</div>
 {% endif %}
 
 {% endblock %}

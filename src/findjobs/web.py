@@ -28,6 +28,8 @@ _STATIC_DIR = Path(__file__).parent / "static"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 VALID_MARK_TYPES = frozenset({"bookmark", "ignored", "applied"})
+_VALID_STATUSES = frozenset({"all", "active", "missing", "archived"})
+_VALID_RELEVANCE_STATUSES = frozenset({"all", "target", "review", "excluded"})
 
 # Chinese labels for tier values shown in the recommendations UI.
 _TIER_LABELS = {
@@ -281,42 +283,161 @@ def create_app(db_path: str | Path | None = None,
         job_type: Optional[str] = Query(None),
         tag: Optional[str] = Query(None),
         status: Optional[str] = Query(None),
+        relevance_status: Optional[str] = Query(None),
         salary_disclosed: Optional[str] = Query(None),
         mark_type: Optional[str] = Query(None),
+        show_ignored: Optional[bool] = Query(None),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(50, ge=1, le=100),
     ):
-        session = _db()
-        try:
-            query = session.query(Job).options(
-                joinedload(Job.company), joinedload(Job.user_marks)
+        # Validate enum query parameters.
+        if status is not None and status not in _VALID_STATUSES:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                {"detail": f"Invalid status: {status!r}"}, status_code=422
+            )
+        if (
+            relevance_status is not None
+            and relevance_status not in _VALID_RELEVANCE_STATUSES
+        ):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                {"detail": f"Invalid relevance_status: {relevance_status!r}"},
+                status_code=422,
             )
 
+        session = _db()
+        try:
+            # ---- Resolve effective filter values ----
+            # None → default; "all" → no filter; other → use directly
+            eff_status = "active" if status is None else status
+            eff_relevance_status = (
+                "target" if relevance_status is None else relevance_status
+            )
+
+            # ---- SQL-compatible filters (id + location + job_type) ----
+            id_query = session.query(Job.id, Job.location, Job.job_type)
+
+            if eff_status != "all":
+                id_query = id_query.filter(Job.status == eff_status)
+            if eff_relevance_status != "all":
+                id_query = id_query.filter(
+                    Job.relevance_status == eff_relevance_status
+                )
+
             if q:
-                query = query.filter(Job.title.ilike(f"%{q}%"))
+                id_query = id_query.filter(Job.title.ilike(f"%{q}%"))
             if company:
-                query = query.join(Job.company).filter(Company.slug == company)
+                id_query = id_query.join(Job.company).filter(
+                    Company.slug == company
+                )
             if tag:
-                query = query.filter(Job.matched_tags.ilike(f"%{tag}%"))
-            if status:
-                query = query.filter(Job.status == status)
+                id_query = id_query.filter(
+                    Job.matched_tags.ilike(f"%{tag}%")
+                )
             if salary_disclosed and salary_disclosed.strip():
                 val = salary_disclosed.lower() == "true"
-                query = query.filter(Job.salary_disclosed == val)
+                id_query = id_query.filter(Job.salary_disclosed == val)
+
+            # Mark-type filter
             if mark_type:
-                query = query.filter(
+                id_query = id_query.filter(
                     Job.user_marks.any(UserMark.mark_type == mark_type)
                 )
 
-            query = query.order_by(Job.last_seen_at.desc())
-            jobs = query.all()
-            if job_type:
-                jobs = [
-                    job for job in jobs if job_type_matches(job.job_type, job_type)
-                ]
-            if location:
-                jobs = [
-                    job for job in jobs if location_matches(job.location, location)
-                ]
+            # Hide ignored by default — unless explicitly asking for
+            # ignored marks or showing all marks.
+            if mark_type != "ignored" and show_ignored is not True:
+                id_query = id_query.filter(
+                    ~Job.user_marks.any(UserMark.mark_type == "ignored")
+                )
+
+            # Stable order
+            id_query = id_query.order_by(
+                Job.last_seen_at.desc(), Job.id.desc()
+            )
+
+            # Fetch IDs with location/job_type
+            id_rows = list(id_query.all())
+
+            # Apply Python-side filters for location and job_type
+            filtered_ids: list[int] = []
+            for row_id, row_location, row_job_type in id_rows:
+                if location and not location_matches(
+                    row_location, location
+                ):
+                    continue
+                if job_type and not job_type_matches(
+                    row_job_type, job_type
+                ):
+                    continue
+                filtered_ids.append(row_id)
+
+            total = len(filtered_ids)
+            total_pages = max(1, (total + page_size - 1) // page_size)
+            start = (page - 1) * page_size
+            page_ids = filtered_ids[start : start + page_size]
+
+            # Fetch full ORM rows for the current page
+            if page_ids:
+                full_rows = {
+                    j.id: j
+                    for j in (
+                        session.query(Job)
+                        .options(
+                            joinedload(Job.company),
+                            joinedload(Job.user_marks),
+                        )
+                        .filter(Job.id.in_(page_ids))
+                        .all()
+                    )
+                }
+                jobs = [full_rows[jid] for jid in page_ids if jid in full_rows]
+            else:
+                jobs = []
+
             filter_opts = _get_filter_options(session)
+
+            # Build pagination context.
+            # For out-of-range pages, Previous links to the last valid page.
+            if page < 1 or page > total_pages:
+                prev_page = total_pages if total_pages >= 1 else None
+                next_page = None
+                has_prev = total_pages >= 1
+                has_next = False
+            else:
+                has_prev = page > 1
+                has_next = page < total_pages
+                prev_page = page - 1 if has_prev else None
+                next_page = page + 1 if has_next else None
+
+            pagination = {
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": total_pages,
+                "has_prev": has_prev,
+                "has_next": has_next,
+                "prev_page": prev_page,
+                "next_page": next_page,
+            }
+
+            # Pre-build prev/next URLs via Starlette so query parameters
+            # (including special characters and Chinese text) are encoded
+            # correctly.  Include page_size explicitly so the per‑page
+            # selector value survives pagination.
+            if prev_page is not None:
+                pagination["prev_url"] = str(
+                    request.url.include_query_params(
+                        page=prev_page, page_size=page_size
+                    )
+                )
+            if next_page is not None:
+                pagination["next_url"] = str(
+                    request.url.include_query_params(
+                        page=next_page, page_size=page_size
+                    )
+                )
 
             return templates.TemplateResponse(
                 request,
@@ -331,9 +452,15 @@ def create_app(db_path: str | Path | None = None,
                         "job_type": job_type or "",
                         "tag": tag or "",
                         "status": status or "",
+                        "relevance_status": relevance_status or "",
                         "salary_disclosed": salary_disclosed or "",
                         "mark_type": mark_type or "",
+                        "show_ignored": show_ignored,
+                        "effective_status": eff_status,
+                        "effective_relevance_status": eff_relevance_status,
                     },
+                    "pagination": pagination,
+                    "page_size": str(page_size),
                 },
             )
         finally:

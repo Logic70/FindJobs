@@ -33,6 +33,10 @@ h3 { font-size: 14px; margin: 16px 0 4px; }
 .filter-input { min-width: 140px; }
 
 /* Tables */
+.table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
 table {
     border-collapse: collapse; width: 100%; font-size: 13px;
     background: #fff; border: 1px solid #ddd;
@@ -43,6 +47,9 @@ th, td {
 }
 th { background: #f5f5f5; font-weight: 600; }
 td:last-child { white-space: normal; }
+.cell-title, .cell-location, .cell-tags {
+    overflow-wrap: anywhere; white-space: normal; max-width: 220px;
+}
 
 /* Description pre */
 .description {
@@ -66,6 +73,38 @@ td:last-child { white-space: normal; }
 
 /* Empty state */
 .empty { color: #888; font-style: italic; }
+
+/* Filter checkbox */
+.filter-checkbox {
+    font-size: 13px; display: inline-flex; align-items: center; gap: 3px;
+    white-space: nowrap;
+}
+.filter-checkbox input { margin: 0; }
+
+/* Pagination */
+.pager {
+    display: flex; flex-wrap: wrap; justify-content: space-between;
+    align-items: center; gap: 8px; margin-top: 8px; font-size: 13px;
+}
+.pager-info { color: #555; }
+.pager-link {
+    display: inline-block; padding: 3px 10px; border: 1px solid #ccc;
+    border-radius: 3px; background: #fff; color: #06c; text-decoration: none;
+    font-size: 13px;
+}
+.pager-link:hover { background: #f0f0f0; text-decoration: none; }
+
+/* Responsive: jobs list */
+@media (max-width: 780px) {
+    .header { flex-wrap: wrap; gap: 8px; }
+    .header h1 { width: 100%; }
+    .filters { flex-direction: column; align-items: stretch; }
+    .filters select, .filters input[type="text"], .filters button { width: 100%; }
+    .filters input[type="checkbox"] { width: auto; }
+    .pager { flex-direction: column; align-items: stretch; text-align: center; }
+    .pager-nav { display: flex; gap: 8px; justify-content: center; }
+    .cell-title, .cell-location, .cell-tags { max-width: 100%; }
+}
 
 /* Recommendations: unframed summary band */
 .rec-summary {
