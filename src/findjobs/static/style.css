@@ -296,17 +296,13 @@ td:last-child { white-space: normal; }
     appearance: none; border: 0; border-bottom: 2px solid transparent;
     background: transparent; cursor: pointer; padding: 3px 1px; line-height: 1.25;
     letter-spacing: 0; max-width: 100%; overflow-wrap: anywhere;
+    font-size: var(--keyword-font-size, 16px);
 }
 .keyword-word:hover, .keyword-word:focus-visible { border-bottom-color: currentColor; }
 .keyword-word.is-active { border-bottom-color: currentColor; font-weight: 700; }
 .keyword-skill { color: #1769aa; }
 .keyword-domain_signal { color: #287a4b; }
 .keyword-candidate { color: #a76400; }
-.keyword-size-1 { font-size: 13px; }
-.keyword-size-2 { font-size: 16px; }
-.keyword-size-3 { font-size: 19px; }
-.keyword-size-4 { font-size: 23px; }
-.keyword-size-5 { font-size: 28px; }
 .keyword-detail { padding-top: 14px; min-height: 300px; }
 .keyword-detail-heading {
     display: flex; flex-wrap: wrap; justify-content: space-between;
@@ -373,7 +369,7 @@ td:last-child { white-space: normal; }
     .market-keyword-filters, .market-keyword-filters label,
     .market-keyword-filters select, .market-keyword-filters input { width: 100%; }
     .keyword-cloud { min-height: 150px; gap: 6px 10px; padding: 14px 8px; }
-    .keyword-size-5 { font-size: 24px; }
+    .keyword-word { font-size: min(var(--keyword-font-size, 16px), 32px); }
     .keyword-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .market-four-column { grid-template-columns: 1fr; }
 }

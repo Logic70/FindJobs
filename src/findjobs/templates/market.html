@@ -53,7 +53,10 @@
     <div class="keyword-cloud" id="keyword-cloud">
         {% for item in keywords %}
         <button type="button" class="keyword-word keyword-{{ item.kind }}{% if loop.first %} is-active{% endif %}"
-                data-keyword-id="{{ item.id }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">
+                data-keyword-id="{{ item.id }}" data-job-count="{{ item.job_count }}"
+                aria-label="{{ item.name }} · {{ item.job_count }} 个岗位"
+                title="{{ item.name }} · {{ item.job_count }} 个岗位"
+                aria-pressed="{{ 'true' if loop.first else 'false' }}">
             {{ item.name }}
         </button>
         {% else %}

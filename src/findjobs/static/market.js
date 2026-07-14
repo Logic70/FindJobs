@@ -41,13 +41,38 @@
     const cloudButtons = () =>
         Array.from(cloud?.querySelectorAll("[data-keyword-id]") || []);
 
+    const computeKeywordFontSize = (jobCount, allCounts) => {
+        const MIN = 13;
+        const MAX = 40;
+        const valid = allCounts
+            .map((value) => Number(value))
+            .filter((value) => Number.isFinite(value) && value > 0);
+        if (valid.length === 0) return `${MIN}px`;
+
+        const count = Number(jobCount);
+        if (!Number.isFinite(count) || count <= 0) return `${MIN}px`;
+
+        const sqrtValues = valid.map((value) => Math.sqrt(value));
+        const lo = Math.min(...sqrtValues);
+        const hi = Math.max(...sqrtValues);
+
+        if (hi === lo) {
+            const mid = Math.round((MIN + MAX) / 2);
+            return `${mid}px`;
+        }
+
+        const ratio = Math.max(0, Math.min(1, (Math.sqrt(count) - lo) / (hi - lo)));
+        return `${Math.round(MIN + ratio * (MAX - MIN))}px`;
+    };
+
     const setCloudSizes = () => {
-        const maximum = Math.max(1, ...keywords.map((item) => Number(item.job_count)));
+        const counts = keywords.map((item) => Number(item.job_count));
         cloudButtons().forEach((button) => {
             const item = byId.get(button.dataset.keywordId);
-            const ratio = Math.log1p(Number(item?.job_count || 0)) / Math.log1p(maximum);
-            const level = Math.max(1, Math.min(5, Math.ceil(ratio * 5)));
-            button.classList.add(`keyword-size-${level}`);
+            button.style.setProperty(
+                "--keyword-font-size",
+                computeKeywordFontSize(item?.job_count, counts)
+            );
         });
     };
 

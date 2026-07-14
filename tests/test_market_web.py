@@ -231,3 +231,20 @@ def test_market_page_escapes_report_content(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert "<script>alert(1)</script>" not in response.text
+
+
+def test_market_page_keyword_buttons_carry_job_count_from_report(
+    tmp_path: Path,
+) -> None:
+    report = market_report()
+    report_path = tmp_path / "market-analysis.json"
+    write_report(report_path, report)
+
+    response = client(tmp_path, report_path).get("/market")
+
+    assert response.status_code == 200
+    job_count = str(report["keyword_analysis"]["keywords"][0]["job_count"])
+    name = report["keyword_analysis"]["keywords"][0]["name"]
+    assert f'data-job-count="{job_count}"' in response.text
+    assert f'aria-label="{name} · {job_count} 个岗位"' in response.text
+    assert f'title="{name} · {job_count} 个岗位"' in response.text
