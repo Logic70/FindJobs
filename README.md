@@ -72,6 +72,8 @@ requirements remain unknown, while skills found only in `responsibilities`
 are reported separately as work-content signals. Personal advice is omitted
 when the profile is absent, and the market report still succeeds. Use
 `--no-profile-analysis` for an explicitly profile-free report.
+Broad terms such as `LLM` are reported as domain signals rather than concrete
+skills, so they do not affect skill combinations or personal learning advice.
 
 ## AI Workflows
 

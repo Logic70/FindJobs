@@ -48,8 +48,13 @@ class MarketTaxonomy:
     schema_version: int
     taxonomy_version: str
     role_families: tuple[RoleFamily, ...]
+    domain_signals: tuple[TaxonomyTerm, ...]
     skills: tuple[TaxonomyTerm, ...]
     traits: tuple[TaxonomyTerm, ...]
+
+    @property
+    def domain_signals_by_id(self) -> dict[str, TaxonomyTerm]:
+        return {term.id: term for term in self.domain_signals}
 
     @property
     def skills_by_id(self) -> dict[str, TaxonomyTerm]:
@@ -83,8 +88,10 @@ class _AnalyzedJob:
     job_types: tuple[str, ...]
     requirements_available: bool
     responsibilities_available: bool
+    requirement_domain_signals: dict[str, str]
     requirement_skills: dict[str, str]
     requirement_traits: dict[str, str]
+    work_domain_signals: frozenset[str]
     work_skills: frozenset[str]
     work_traits: frozenset[str]
     required_years: float | None
@@ -103,7 +110,9 @@ _REQUIRED_RE = re.compile(
     r"required|must|proficient|familiar|experience",
     re.IGNORECASE,
 )
-_YEAR_RANGE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*[-~至到]\s*\d+(?:\.\d+)?\s*(?:年|years?)", re.IGNORECASE)
+_YEAR_RANGE_RE = re.compile(
+    r"(\d+(?:\.\d+)?)\s*[-~至到]\s*\d+(?:\.\d+)?\s*(?:年|years?)", re.IGNORECASE
+)
 _YEAR_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:\+|年以上|年|years?)", re.IGNORECASE)
 
 _REQUIRED_FULL_FIELDS = frozenset(
@@ -194,7 +203,7 @@ def load_market_taxonomy(path: Path) -> MarketTaxonomy:
         raise MarketAnalysisError(f"Invalid YAML in {path}: {exc}") from exc
     if not isinstance(raw, dict):
         raise MarketAnalysisError(f"{path}: taxonomy root must be an object")
-    if raw.get("schema_version") != 1:
+    if raw.get("schema_version") != 2:
         raise MarketAnalysisError(f"{path}: unsupported schema_version")
     version = _as_nonempty_string(raw.get("taxonomy_version"), "taxonomy_version", path)
 
@@ -222,12 +231,16 @@ def load_market_taxonomy(path: Path) -> MarketTaxonomy:
         )
 
     seen_ids: set[str] = set()
+    domain_signals = _load_terms(
+        raw.get("domain_signals"), "domain_signals", path, seen_ids
+    )
     skills = _load_terms(raw.get("skills"), "skills", path, seen_ids)
     traits = _load_terms(raw.get("traits"), "traits", path, seen_ids)
     return MarketTaxonomy(
-        schema_version=1,
+        schema_version=2,
         taxonomy_version=version,
         role_families=tuple(role_families),
+        domain_signals=domain_signals,
         skills=skills,
         traits=traits,
     )
@@ -252,9 +265,7 @@ def _matching_term_ids(text: str, terms: Iterable[TaxonomyTerm]) -> set[str]:
     return {term.id for term in terms if _matches_term(text, term)}
 
 
-def _requirement_strengths(
-    text: str, terms: Iterable[TaxonomyTerm]
-) -> dict[str, str]:
+def _requirement_strengths(text: str, terms: Iterable[TaxonomyTerm]) -> dict[str, str]:
     clauses = [part.strip() for part in _CLAUSE_RE.split(text) if part.strip()]
     result: dict[str, str] = {}
     rank = {"unspecified": 0, "preferred": 1, "required": 2}
@@ -360,9 +371,15 @@ def _prepare_jobs(
         responsibilities = str(row.get("responsibilities") or "").strip()
         family_id, family_name = _classify_role_family(row, taxonomy)
         company_slug = str(row.get("company_slug") or "unknown").strip() or "unknown"
-        company_name = str(row.get("company_name") or company_slug).strip() or company_slug
-        locations = tuple(split_locations(str(row.get("location") or ""))) or ("未标注",)
-        job_types = tuple(split_job_types(str(row.get("job_type") or ""))) or ("未分类",)
+        company_name = (
+            str(row.get("company_name") or company_slug).strip() or company_slug
+        )
+        locations = tuple(split_locations(str(row.get("location") or ""))) or (
+            "未标注",
+        )
+        job_types = tuple(split_job_types(str(row.get("job_type") or ""))) or (
+            "未分类",
+        )
         jobs.append(
             _AnalyzedJob(
                 row=row,
@@ -375,10 +392,24 @@ def _prepare_jobs(
                 job_types=job_types,
                 requirements_available=bool(requirements),
                 responsibilities_available=bool(responsibilities),
-                requirement_skills=_requirement_strengths(requirements, taxonomy.skills),
-                requirement_traits=_requirement_strengths(requirements, taxonomy.traits),
-                work_skills=frozenset(_matching_term_ids(responsibilities, taxonomy.skills)),
-                work_traits=frozenset(_matching_term_ids(responsibilities, taxonomy.traits)),
+                requirement_domain_signals=_requirement_strengths(
+                    requirements, taxonomy.domain_signals
+                ),
+                requirement_skills=_requirement_strengths(
+                    requirements, taxonomy.skills
+                ),
+                requirement_traits=_requirement_strengths(
+                    requirements, taxonomy.traits
+                ),
+                work_domain_signals=frozenset(
+                    _matching_term_ids(responsibilities, taxonomy.domain_signals)
+                ),
+                work_skills=frozenset(
+                    _matching_term_ids(responsibilities, taxonomy.skills)
+                ),
+                work_traits=frozenset(
+                    _matching_term_ids(responsibilities, taxonomy.traits)
+                ),
                 required_years=_extract_required_years(requirements),
                 education_level=_extract_education(requirements),
             )
@@ -429,10 +460,14 @@ def _term_metrics(
             overall = overall_coverage.get(term.id, 0.0)
             item["specificity"] = round(coverage / overall, 4) if overall else 0.0
         metrics.append(item)
-    return sorted(metrics, key=lambda item: (-item["job_count"], item["name"], item["id"]))
+    return sorted(
+        metrics, key=lambda item: (-item["job_count"], item["name"], item["id"])
+    )
 
 
-def _group_jobs(jobs: list[_AnalyzedJob], dimension: str) -> dict[tuple[str, str], list[_AnalyzedJob]]:
+def _group_jobs(
+    jobs: list[_AnalyzedJob], dimension: str
+) -> dict[tuple[str, str], list[_AnalyzedJob]]:
     groups: dict[tuple[str, str], list[_AnalyzedJob]] = defaultdict(list)
     for job in jobs:
         if dimension == "role_family":
@@ -460,6 +495,13 @@ def _build_groups(
         items: list[dict[str, Any]] = []
         for (key, name), group_jobs in _group_jobs(jobs, dimension).items():
             requirement_count = sum(job.requirements_available for job in group_jobs)
+            domain_signals = _term_metrics(
+                group_jobs,
+                taxonomy.domain_signals,
+                "requirement_domain_signals",
+                "work_domain_signals",
+                include_zero=False,
+            )
             skills = _term_metrics(
                 group_jobs,
                 taxonomy.skills,
@@ -483,6 +525,7 @@ def _build_groups(
                     "requirements_available_jobs": requirement_count,
                     "requirements_coverage": _ratio(requirement_count, len(group_jobs)),
                     "small_sample": requirement_count < 5,
+                    "domain_signals": domain_signals,
                     "skills": skills,
                     "traits": traits,
                 }
@@ -583,7 +626,9 @@ def _target_role_family_ids(
     return result
 
 
-def _company_is_excluded(job_group: dict[str, Any], profile: RecommendationProfile) -> bool:
+def _company_is_excluded(
+    job_group: dict[str, Any], profile: RecommendationProfile
+) -> bool:
     identities = (
         str(job_group["key"]).strip().casefold(),
         str(job_group["name"]).strip().casefold(),
@@ -777,7 +822,9 @@ def _market_signal_advice(
 
 
 def _input_fingerprint(rows: list[dict[str, Any]]) -> str:
-    encoded = json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    encoded = json.dumps(
+        rows, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
@@ -795,8 +842,16 @@ def analyze_market(
     responsibilities_available = sum(job.responsibilities_available for job in jobs)
     companies = {job.company_slug for job in jobs}
     cities = {location for job in jobs for location in job.locations}
-    completeness = Counter(str(job.row.get("detail_completeness") or "missing") for job in jobs)
+    completeness = Counter(
+        str(job.row.get("detail_completeness") or "missing") for job in jobs
+    )
 
+    domain_signals = _term_metrics(
+        jobs,
+        taxonomy.domain_signals,
+        "requirement_domain_signals",
+        "work_domain_signals",
+    )
     skills = _term_metrics(
         jobs,
         taxonomy.skills,
@@ -815,7 +870,7 @@ def analyze_market(
     experience = Counter(_experience_band(job.required_years) for job in jobs)
     education = Counter(job.education_level or "未明确" for job in jobs)
     result: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "taxonomy_version": taxonomy.taxonomy_version,
         "as_of": actual_date.isoformat(),
         "input_fingerprint": _input_fingerprint(rows),
@@ -842,6 +897,7 @@ def analyze_market(
         "new_jobs_by_window": _new_jobs_by_window(jobs, actual_date),
         "experience_distribution": dict(sorted(experience.items())),
         "education_distribution": dict(sorted(education.items())),
+        "domain_signals": domain_signals,
         "skills": skills,
         "traits": traits,
         "groups": groups,
@@ -849,7 +905,8 @@ def analyze_market(
         "personal_advice": None,
         "fact_boundary": (
             "Requirements statistics use explicit requirements text only. "
-            "Missing requirements remain unknown; responsibilities are reported separately."
+            "Broad domain mentions are not skills. Missing requirements remain unknown; "
+            "responsibilities are reported separately."
         ),
     }
     if profile is not None:
@@ -874,6 +931,15 @@ def render_market_markdown(result: dict[str, Any]) -> str:
 
     def top_names(item: dict[str, Any]) -> str:
         return "、".join(skill["name"] for skill in item["skills"][:5]) or "无"
+
+    def domain_summary(item: dict[str, Any]) -> str:
+        signals = item["domain_signals"]
+        if not signals:
+            return "无"
+        return "、".join(
+            f"{signal['name']} {_percent(signal['job_coverage'])}"
+            for signal in signals[:3]
+        )
 
     def distinctive_names(item: dict[str, Any]) -> str:
         minimum_count = max(
@@ -913,10 +979,27 @@ def render_market_markdown(result: dict[str, Any]) -> str:
         f"- 近90天：{result['new_jobs_by_window']['90_days']}。",
         "- 该指标使用官网发布时间，缺失时使用首次发现时间，不代表历史在招总量趋势。",
         "",
-        "## 技能要求",
-        "| 技能 | 类别 | 岗位数/有效要求 | 岗位覆盖率 | 公司数/有效公司 | 明确要求 | 优先项 | 职责提及 |",
-        "|---|---|---:|---:|---:|---:|---:|---:|",
+        "## 领域信号（不是具体技能）",
+        "领域信号只表示岗位文本提到相应技术领域，不参与技能组合、画像覆盖或学习优先级。",
+        "",
+        "| 领域信号 | 岗位数/有效要求 | 岗位提及率 | 公司数/有效公司 | 职责提及 |",
+        "|---|---:|---:|---:|---:|",
     ]
+    for item in [entry for entry in result["domain_signals"] if entry["job_count"] > 0]:
+        lines.append(
+            f"| {item['name']} | {item['job_count']}/{item['job_denominator']} "
+            f"| {_percent(item['job_coverage'])} | {item['company_count']}/{item['company_denominator']} "
+            f"| {item['work_content_job_count']} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## 技能要求",
+            "| 技能 | 类别 | 岗位数/有效要求 | 岗位覆盖率 | 公司数/有效公司 | 明确要求 | 优先项 | 职责提及 |",
+            "|---|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
     for item in [entry for entry in result["skills"] if entry["job_count"] > 0][:20]:
         lines.append(
             f"| {item['name']} | {item['category']} | {item['job_count']}/{item['job_denominator']} "
@@ -942,28 +1025,28 @@ def render_market_markdown(result: dict[str, Any]) -> str:
         [
             "",
             "## 岗位方向",
-            "| 方向 | 岗位数 | 有效要求 | 要求覆盖率 | 高频技能 | 相对特色技能 |",
-            "|---|---:|---:|---:|---|---|",
+            "| 方向 | 岗位数 | 有效要求 | 领域提及 | 高频技能 | 相对特色技能 |",
+            "|---|---:|---:|---|---|---|",
         ]
     )
     for item in result["groups"]["role_family"]:
         lines.append(
             f"| {group_name(item)} | {item['job_count']} | {item['requirements_available_jobs']} "
-            f"| {_percent(item['requirements_coverage'])} | {top_names(item)} | {distinctive_names(item)} |"
+            f"| {domain_summary(item)} | {top_names(item)} | {distinctive_names(item)} |"
         )
 
     lines.extend(
         [
             "",
             "## 公司需求画像",
-            "| 公司 | 岗位数 | 有效要求 | 要求覆盖率 | 高频技能 | 相对特色技能 |",
-            "|---|---:|---:|---:|---|---|",
+            "| 公司 | 岗位数 | 有效要求 | 领域提及 | 高频技能 | 相对特色技能 |",
+            "|---|---:|---:|---|---|---|",
         ]
     )
     for item in result["groups"]["company"][:20]:
         lines.append(
             f"| {group_name(item)} | {item['job_count']} | {item['requirements_available_jobs']} "
-            f"| {_percent(item['requirements_coverage'])} | {top_names(item)} | {distinctive_names(item)} |"
+            f"| {domain_summary(item)} | {top_names(item)} | {distinctive_names(item)} |"
         )
 
     lines.extend(
@@ -1056,6 +1139,7 @@ def render_market_markdown(result: dict[str, Any]) -> str:
         [
             "",
             "## 事实边界",
+            "- “大模型领域提及”等领域信号不是具体技能，不参与技能决策。",
             "- 技能要求覆盖率只使用非空 `requirements`；要求缺失保持未知。",
             "- 职责中的技能单独统计，不作为明确岗位要求。",
             "- 小样本公司和方向只展示样本量，不据此推断整体招聘偏好。",
@@ -1195,7 +1279,5 @@ def run_market_analysis(
         json_output=json_output,
         markdown_output=markdown_output,
         analyzed_jobs=result["sample"]["analyzed_jobs"],
-        requirements_available_jobs=result["quality"][
-            "requirements_available_jobs"
-        ],
+        requirements_available_jobs=result["quality"]["requirements_available_jobs"],
     )

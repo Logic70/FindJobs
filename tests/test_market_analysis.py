@@ -59,23 +59,40 @@ def skill(result: dict, term_id: str) -> dict:
     return next(item for item in result["skills"] if item["id"] == term_id)
 
 
+def domain_signal(result: dict, term_id: str) -> dict:
+    return next(item for item in result["domain_signals"] if item["id"] == term_id)
+
+
 def group(result: dict, dimension: str, key: str) -> dict:
     return next(item for item in result["groups"][dimension] if item["key"] == key)
 
 
 class TestTaxonomy:
     def test_loads_versioned_taxonomy(self, taxonomy) -> None:
-        assert taxonomy.schema_version == 1
-        assert taxonomy.taxonomy_version == "2026.07.1"
+        assert taxonomy.schema_version == 2
+        assert taxonomy.taxonomy_version == "2026.07.2"
         assert taxonomy.skills_by_id["python"].name == "Python"
+        assert taxonomy.domain_signals_by_id["llm_domain"].name == "大模型领域提及"
+        assert "llm" not in taxonomy.skills_by_id
+
+    def test_rejects_previous_schema(self, tmp_path: Path) -> None:
+        path = tmp_path / "taxonomy.yaml"
+        path.write_text(
+            "schema_version: 1\ntaxonomy_version: old",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(MarketAnalysisError, match="unsupported schema_version"):
+            load_market_taxonomy(path)
 
     def test_duplicate_term_id_fails_with_context(self, tmp_path: Path) -> None:
         path = tmp_path / "taxonomy.yaml"
         path.write_text(
             """
-schema_version: 1
+schema_version: 2
 taxonomy_version: test
 role_families: []
+domain_signals: []
 skills:
   - {id: python, name: Python, category: language, aliases: [Python]}
   - {id: python, name: Other, category: language, aliases: [Other]}
@@ -91,9 +108,10 @@ traits: []
         path = tmp_path / "taxonomy.yaml"
         path.write_text(
             """
-schema_version: 1
+schema_version: 2
 taxonomy_version: test
 role_families: []
+domain_signals: []
 skills:
   - {id: python, name: Python, category: language, aliases: []}
 traits: []
@@ -164,6 +182,48 @@ class TestSampleContract:
 
 
 class TestRequirementSignals:
+    def test_broad_llm_mention_is_domain_signal_not_skill(self, taxonomy) -> None:
+        profile = RecommendationProfile(skills=("大模型",))
+        result = analyze_market(
+            [
+                make_row(
+                    requirements="具备大模型相关经验",
+                    responsibilities="参与 LLM 相关业务",
+                )
+            ],
+            taxonomy,
+            profile=profile,
+            as_of=date(2026, 7, 14),
+        )
+
+        assert domain_signal(result, "llm_domain")["job_count"] == 1
+        assert "llm_domain" not in [item["id"] for item in result["skills"]]
+        assert skill(result, "llm_application")["job_count"] == 0
+        assert "llm_domain" not in result["personal_advice"]["covered_skill_ids"]
+        assert "llm_domain" not in {
+            item["skill_id"]
+            for item in result["personal_advice"]["learning_priorities"]
+        }
+        assert "llm_domain" not in {
+            item["skill_id"] for item in result["personal_advice"]["resume_evidence"]
+        }
+
+    def test_concrete_llm_capabilities_remain_actionable_skills(self, taxonomy) -> None:
+        rows = [
+            make_row(id=1, requirements="具备大模型应用开发和工程落地经验"),
+            make_row(id=2, requirements="有 LLM 应用架构经验"),
+            make_row(id=3, requirements="具备大模型训练经验"),
+            make_row(id=4, requirements="负责大模型平台建设"),
+            make_row(id=5, requirements="参与 AI 平台研发"),
+        ]
+
+        result = analyze_market(rows, taxonomy, as_of=date(2026, 7, 14))
+
+        assert skill(result, "llm_application")["job_count"] == 2
+        assert skill(result, "model_training")["job_count"] == 1
+        assert skill(result, "ai_platform_engineering")["job_count"] == 2
+        assert domain_signal(result, "llm_domain")["job_count"] == 4
+
     def test_required_preferred_and_unspecified_are_separate(self, taxonomy) -> None:
         rows = [
             make_row(id=1, requirements="必须掌握 Python"),
@@ -305,16 +365,14 @@ class TestProfileAdvice:
         advice = result["personal_advice"]
 
         assert "python" in advice["covered_skill_ids"]
-        assert "python" not in [item["skill_id"] for item in advice["learning_priorities"]]
+        assert "python" not in [
+            item["skill_id"] for item in advice["learning_priorities"]
+        ]
         assert advice["target_role_family_ids"] == ["ai_security"]
-        assert any(
-            item["skill_id"] == "python" for item in advice["resume_evidence"]
-        )
+        assert any(item["skill_id"] == "python" for item in advice["resume_evidence"])
 
     def test_no_profile_omits_personal_advice(self, taxonomy) -> None:
-        result = analyze_market(
-            [make_row()], taxonomy, as_of=date(2026, 7, 14)
-        )
+        result = analyze_market([make_row()], taxonomy, as_of=date(2026, 7, 14))
         assert result["personal_advice"] is None
 
     def test_output_contains_no_profile_path_or_contact_data(self, taxonomy) -> None:
@@ -387,19 +445,17 @@ class TestOutput:
         assert first == second
 
     def test_markdown_renders_json_facts(self, taxonomy) -> None:
-        result = analyze_market(
-            [make_row()], taxonomy, as_of=date(2026, 7, 14)
-        )
+        result = analyze_market([make_row()], taxonomy, as_of=date(2026, 7, 14))
         markdown = render_market_markdown(result)
 
         assert "岗位市场需求画像" in markdown
         assert "有效岗位要求" in markdown
         assert str(result["quality"]["requirements_available_jobs"]) in markdown
         assert "未披露薪资" not in markdown
+        assert "领域信号（不是具体技能）" in markdown
+        assert "大模型领域提及" in markdown
 
     def test_markdown_marks_small_samples(self, taxonomy) -> None:
-        result = analyze_market(
-            [make_row()], taxonomy, as_of=date(2026, 7, 14)
-        )
+        result = analyze_market([make_row()], taxonomy, as_of=date(2026, 7, 14))
         markdown = render_market_markdown(result)
         assert "小样本" in markdown

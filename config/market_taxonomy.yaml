@@ -1,5 +1,5 @@
-schema_version: 1
-taxonomy_version: "2026.07.1"
+schema_version: 2
+taxonomy_version: "2026.07.2"
 
 # Ordered from the most specific direction to broad fallbacks. A job receives
 # the first matching family; unmatched jobs fall back to their stored tags.
@@ -35,6 +35,12 @@ role_families:
     name: AI应用工程
     aliases: [AI应用, 大模型应用, LLM应用, 智能体, Agent, RAG, AI工程, AI engineer, LLM engineer]
 
+domain_signals:
+  - id: llm_domain
+    name: 大模型领域提及
+    category: 领域信号
+    aliases: [大语言模型, 大模型, LLM, Large Language Model]
+
 skills:
   - {id: python, name: Python, category: 编程语言, aliases: [Python]}
   - {id: java, name: Java, category: 编程语言, aliases: [Java]}
@@ -44,7 +50,9 @@ skills:
   - {id: sql, name: SQL, category: 数据工程, aliases: [SQL]}
   - {id: shell, name: Shell, category: 编程语言, aliases: [Shell, Bash]}
   - {id: linux, name: Linux, category: 平台工程, aliases: [Linux]}
-  - {id: llm, name: 大语言模型, category: AI应用, aliases: [大语言模型, 大模型, LLM, Large Language Model]}
+  - {id: llm_application, name: LLM应用工程, category: AI应用, aliases: [大模型应用开发, 大模型实际应用开发, 大模型应用工程, 大模型应用架构, 大模型工程落地, LLM应用, LLM 应用, LLM应用开发, LLM应用工程, LLM 工程落地, LLM Application, LLM Application Development, LLM Application Engineering]}
+  - {id: model_training, name: 模型训练, category: AI工程, aliases: [大模型训练, 模型训练, LLM Training, Model Training, Pretraining, Pre-training, 预训练]}
+  - {id: ai_platform_engineering, name: AI平台工程, category: AI平台, aliases: [AI平台, AI 平台, AI平台建设, AI平台研发, 大模型平台建设, 大模型平台研发, 机器学习平台, 模型平台建设, 训练平台建设, AI基础设施, LLM Platform, ML Platform Engineering, AI Platform Engineering]}
   - {id: agent, name: Agent/智能体, category: AI应用, aliases: [智能体, Agent, Agentic]}
   - {id: rag, name: RAG, category: AI应用, aliases: [RAG, 检索增强生成, retrieval augmented generation]}
   - {id: prompt_engineering, name: Prompt工程, category: AI应用, aliases: [Prompt工程, 提示词工程, Prompt Engineering]}
