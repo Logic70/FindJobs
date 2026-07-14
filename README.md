@@ -49,6 +49,30 @@ Export fields:
 No salary estimation or inference is performed. If the source did not disclose
 a salary, `salary_disclosed` is `false` and the numeric fields are empty.
 
+## Market Demand Analysis
+
+Analyze the existing full export without database, network, or AI access:
+
+```bash
+findjobs weekly --no-live --profile profile/profile.md
+findjobs market-analyze --as-of 2026-07-14
+```
+
+The command reads `reports/match/jobs-full.jsonl` and the versioned taxonomy
+in `config/market_taxonomy.yaml`. It writes:
+
+- `reports/market/market-analysis.json`: reproducible market statistics and
+  evidence for downstream analysis.
+- `reports/market/market-analysis.md`: company, role-family, job-type, location,
+  skill, trait, skill-combination, and personal-advice tables.
+
+The primary sample contains unique `active + target` non-algorithm jobs.
+Skill requirement coverage uses non-empty `requirements` only. Missing
+requirements remain unknown, while skills found only in `responsibilities`
+are reported separately as work-content signals. Personal advice is omitted
+when the profile is absent, and the market report still succeeds. Use
+`--no-profile-analysis` for an explicitly profile-free report.
+
 ## AI Workflows
 
 Workflow prompt templates are provided in `workflows/`:

@@ -34,6 +34,8 @@ reports/match/jobs-full.jsonl
 reports/match/claude-commentary.md
 reports/priority/*.md
 reports/adapter-repair/*.md
+reports/market/*.json
+reports/market/*.md
 
 # Runtime database and cache
 *.db

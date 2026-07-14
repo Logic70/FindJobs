@@ -1,0 +1,103 @@
+schema_version: 1
+taxonomy_version: "2026.07.1"
+
+# Ordered from the most specific direction to broad fallbacks. A job receives
+# the first matching family; unmatched jobs fall back to their stored tags.
+role_families:
+  - id: ai_security
+    name: AI安全
+    aliases: [AI安全, 人工智能安全, 大模型安全, LLM security, AI security, 模型安全, 智能体安全, Agent security]
+  - id: appsec_sdl
+    name: 应用安全与SDL
+    aliases: [应用安全, AppSec, SDL, 安全开发生命周期, 安全左移, 产品安全]
+  - id: offensive_security
+    name: 攻防与漏洞研究
+    aliases: [渗透测试, 红队, 攻防, 漏洞研究, 漏洞挖掘, 代码审计, 逆向, penetration, red team, vulnerability research]
+  - id: cloud_security
+    name: 云与基础设施安全
+    aliases: [云安全, 容器安全, 主机安全, 基础设施安全, cloud security, container security, Kubernetes security]
+  - id: data_privacy
+    name: 数据安全与隐私
+    aliases: [数据安全, 隐私安全, 隐私工程, 隐私合规, 数据合规, data security, privacy engineering]
+  - id: security_operations
+    name: 安全运营与响应
+    aliases: [安全运营, 安全响应, 应急响应, 威胁检测, 威胁狩猎, SOC, SIEM, incident response, threat hunting]
+  - id: security_platform
+    name: 安全平台工程
+    aliases: [安全平台, 安全工程平台, 安全基础设施, 安全研发, security platform, security engineering]
+  - id: mlops_inference
+    name: MLOps与推理部署
+    aliases: [MLOps, 模型部署, 推理部署, 推理引擎, 模型服务, model serving, inference, vLLM]
+  - id: ai_platform
+    name: AI平台工程
+    aliases: [AI平台, 大模型平台, 机器学习平台, 模型平台, 训练平台, AI基础设施, ML platform, AI platform]
+  - id: ai_application
+    name: AI应用工程
+    aliases: [AI应用, 大模型应用, LLM应用, 智能体, Agent, RAG, AI工程, AI engineer, LLM engineer]
+
+skills:
+  - {id: python, name: Python, category: 编程语言, aliases: [Python]}
+  - {id: java, name: Java, category: 编程语言, aliases: [Java]}
+  - {id: go, name: Go, category: 编程语言, aliases: [Go, Golang]}
+  - {id: cpp, name: C/C++, category: 编程语言, aliases: [C++, C/C++]}
+  - {id: javascript_typescript, name: JavaScript/TypeScript, category: 编程语言, aliases: [JavaScript, TypeScript, Node.js, NodeJS]}
+  - {id: sql, name: SQL, category: 数据工程, aliases: [SQL]}
+  - {id: shell, name: Shell, category: 编程语言, aliases: [Shell, Bash]}
+  - {id: linux, name: Linux, category: 平台工程, aliases: [Linux]}
+  - {id: llm, name: 大语言模型, category: AI应用, aliases: [大语言模型, 大模型, LLM, Large Language Model]}
+  - {id: agent, name: Agent/智能体, category: AI应用, aliases: [智能体, Agent, Agentic]}
+  - {id: rag, name: RAG, category: AI应用, aliases: [RAG, 检索增强生成, retrieval augmented generation]}
+  - {id: prompt_engineering, name: Prompt工程, category: AI应用, aliases: [Prompt工程, 提示词工程, Prompt Engineering]}
+  - {id: langchain_llamaindex, name: LangChain/LlamaIndex, category: AI应用, aliases: [LangChain, LlamaIndex]}
+  - {id: mcp, name: MCP, category: AI应用, aliases: [MCP, Model Context Protocol]}
+  - {id: fine_tuning, name: 模型微调, category: AI工程, aliases: [模型微调, 微调, Fine-tuning, Finetuning, LoRA, SFT]}
+  - {id: model_evaluation, name: 模型评测, category: AI工程, aliases: [模型评测, 大模型评测, Model Evaluation, LLM Evaluation]}
+  - {id: multimodal, name: 多模态, category: AI工程, aliases: [多模态, Multimodal]}
+  - {id: vector_database, name: 向量数据库, category: 数据工程, aliases: [向量数据库, Vector Database, Milvus, FAISS, pgvector]}
+  - {id: pytorch, name: PyTorch, category: AI工程, aliases: [PyTorch]}
+  - {id: transformers, name: Transformers, category: AI工程, aliases: [Transformers, Hugging Face, HuggingFace]}
+  - {id: mlops, name: MLOps, category: AI平台, aliases: [MLOps]}
+  - {id: inference_deployment, name: 推理部署, category: AI平台, aliases: [推理部署, 模型部署, 模型服务, Model Serving, Inference Serving, vLLM, TensorRT, Triton]}
+  - {id: docker, name: Docker, category: 平台工程, aliases: [Docker]}
+  - {id: kubernetes, name: Kubernetes, category: 平台工程, aliases: [Kubernetes, K8s]}
+  - {id: cloud_platform, name: 云平台, category: 平台工程, aliases: [AWS, Azure, GCP, 阿里云, 腾讯云, 华为云, 公有云, 私有云]}
+  - {id: distributed_systems, name: 分布式系统, category: 平台工程, aliases: [分布式系统, Distributed Systems]}
+  - {id: microservices, name: 微服务, category: 平台工程, aliases: [微服务, Microservices]}
+  - {id: cicd, name: CI/CD, category: 平台工程, aliases: [CI/CD, CICD, Jenkins, GitLab CI, GitHub Actions]}
+  - {id: observability, name: 可观测性, category: 平台工程, aliases: [可观测性, Observability, Prometheus, Grafana, OpenTelemetry]}
+  - {id: appsec, name: AppSec, category: 安全工程, aliases: [AppSec, 应用安全, Application Security]}
+  - {id: sdl, name: SDL, category: 安全工程, aliases: [SDL, 安全开发生命周期, Security Development Lifecycle, 安全左移]}
+  - {id: penetration_testing, name: 渗透测试, category: 攻防, aliases: [渗透测试, Penetration Testing, Pen Test]}
+  - {id: code_audit, name: 代码审计, category: 攻防, aliases: [代码审计, Code Audit, Source Code Review]}
+  - {id: vulnerability_research, name: 漏洞研究, category: 攻防, aliases: [漏洞研究, 漏洞挖掘, Vulnerability Research, 0day, Zero-day]}
+  - {id: security_testing, name: 安全测试, category: 安全工程, aliases: [安全测试, Security Testing]}
+  - {id: red_team, name: 红队与攻防, category: 攻防, aliases: [红队, Red Team, 攻防演练, 对抗演练]}
+  - {id: threat_modeling, name: 威胁建模, category: 安全工程, aliases: [威胁建模, Threat Modeling, Threat Model]}
+  - {id: cloud_security, name: 云安全, category: 安全工程, aliases: [云安全, Cloud Security]}
+  - {id: data_security, name: 数据安全, category: 安全工程, aliases: [数据安全, Data Security, DLP]}
+  - {id: privacy_engineering, name: 隐私工程, category: 安全工程, aliases: [隐私工程, 隐私安全, Privacy Engineering, Privacy Security, GDPR, PIPL]}
+  - {id: security_operations, name: 安全运营, category: 安全运营, aliases: [安全运营, Security Operations, SOC]}
+  - {id: siem, name: SIEM, category: 安全运营, aliases: [SIEM]}
+  - {id: incident_response, name: 应急响应, category: 安全运营, aliases: [应急响应, Incident Response, IR]}
+  - {id: iam_zero_trust, name: IAM/零信任, category: 安全工程, aliases: [IAM, 身份与访问管理, 零信任, Zero Trust]}
+  - {id: devsecops, name: DevSecOps, category: 安全工程, aliases: [DevSecOps]}
+  - {id: supply_chain_security, name: 软件供应链安全, category: 安全工程, aliases: [供应链安全, 软件供应链, Supply Chain Security, SCA, SBOM]}
+  - {id: llm_security, name: AI/大模型安全, category: AI安全, aliases: [AI安全, 人工智能安全, 大模型安全, LLM Security, AI Security]}
+  - {id: prompt_injection, name: 提示注入防护, category: AI安全, aliases: [提示注入, Prompt Injection, Jailbreak, 越狱攻击]}
+  - {id: agent_security, name: Agent安全, category: AI安全, aliases: [智能体安全, Agent Security, Tool Calling Security, 工具调用安全]}
+  - {id: model_red_teaming, name: 模型红队与对抗评测, category: AI安全, aliases: [模型红队, 大模型红队, Model Red Teaming, AI Red Teaming, 对抗评测]}
+  - {id: burp_suite, name: Burp Suite, category: 安全工具, aliases: [Burp, Burp Suite]}
+  - {id: sast_dast, name: SAST/DAST, category: 安全工具, aliases: [SAST, DAST, IAST]}
+  - {id: fuzzing, name: Fuzzing, category: 安全工具, aliases: [Fuzzing, Fuzz, 模糊测试]}
+
+traits:
+  - {id: communication, name: 沟通能力, category: 通用特质, aliases: [沟通能力, 沟通协调, 表达能力, Communication Skills]}
+  - {id: collaboration, name: 团队与跨部门协作, category: 通用特质, aliases: [团队协作, 跨团队, 跨部门, 协作能力, Teamwork, Cross-functional]}
+  - {id: ownership, name: 责任心与主人翁意识, category: 通用特质, aliases: [责任心, 主人翁意识, Ownership, Self-driven, 自驱力]}
+  - {id: execution, name: 推动与执行能力, category: 通用特质, aliases: [推动能力, 推进能力, 执行力, 落地能力, Drive Execution]}
+  - {id: learning, name: 学习能力, category: 通用特质, aliases: [学习能力, 快速学习, 学习意愿, Continuous Learning]}
+  - {id: problem_solving, name: 分析与问题解决, category: 通用特质, aliases: [问题解决, 分析能力, 解决复杂问题, Problem Solving]}
+  - {id: project_delivery, name: 项目交付能力, category: 工程特质, aliases: [项目交付, 项目管理, 交付能力, Project Delivery]}
+  - {id: english, name: 英文能力, category: 通用特质, aliases: [英语能力, 英文能力, English Proficiency, CET-6, 雅思, 托福]}
+  - {id: open_source, name: 开源经历, category: 加分项, aliases: [开源项目, 开源贡献, Open Source, GitHub]}
+  - {id: certification, name: 专业认证, category: 加分项, aliases: [CISSP, CISP, OSCP, CEH, Security+, 云认证]}

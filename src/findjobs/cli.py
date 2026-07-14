@@ -751,6 +751,82 @@ def export(
         _safe_stdout_emit(result)
 
 
+@app.command("market-analyze")
+def market_analyze(
+    jobs: str = typer.Option(
+        "reports/match/jobs-full.jsonl",
+        "--jobs",
+        help="Full JSONL job export to analyze.",
+    ),
+    profile: str = typer.Option(
+        "profile/profile.md",
+        "--profile",
+        help="Privacy-safe profile used for personal market advice.",
+    ),
+    profile_analysis: bool = typer.Option(
+        True,
+        "--profile-analysis/--no-profile-analysis",
+        help="Include personal advice when the profile file exists.",
+    ),
+    taxonomy: str = typer.Option(
+        "config/market_taxonomy.yaml",
+        "--taxonomy",
+        help="Versioned skill, trait, and role-family taxonomy.",
+    ),
+    output_json: str = typer.Option(
+        "reports/market/market-analysis.json",
+        "--output-json",
+        help="Machine-readable analysis output.",
+    ),
+    output_markdown: str = typer.Option(
+        "reports/market/market-analysis.md",
+        "--output-markdown",
+        help="Human-readable analysis report.",
+    ),
+    as_of: str = typer.Option(
+        None,
+        "--as-of",
+        help="Analysis date in YYYY-MM-DD format (defaults to today).",
+    ),
+):
+    """Analyze skill and trait demand from an existing full job export."""
+    from findjobs.market_analysis import MarketAnalysisError, run_market_analysis
+
+    analysis_date: datetime.date | None = None
+    if as_of is not None:
+        try:
+            analysis_date = datetime.date.fromisoformat(as_of)
+        except ValueError:
+            typer.echo(
+                f"Invalid value for --as-of: '{as_of}'. Use YYYY-MM-DD.",
+                err=True,
+            )
+            raise typer.Exit(1) from None
+
+    profile_path = Path(profile) if profile_analysis else None
+    try:
+        result = run_market_analysis(
+            jobs_path=Path(jobs),
+            taxonomy_path=Path(taxonomy),
+            profile_path=profile_path,
+            json_output=Path(output_json),
+            markdown_output=Path(output_markdown),
+            as_of=analysis_date,
+        )
+    except (MarketAnalysisError, OSError, ValueError) as exc:
+        typer.echo(f"Market analysis failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(
+        f"Market analysis complete: {result.analyzed_jobs} target jobs, "
+        f"{result.requirements_available_jobs} with explicit requirements."
+    )
+    typer.echo(f"  json: {result.json_output}")
+    typer.echo(f"  markdown: {result.markdown_output}")
+    if profile_analysis and not result.profile_used:
+        typer.echo(f"  profile: {profile_path} not found; personal advice omitted.")
+
+
 @app.command()
 def prune(
     db_path: str = typer.Option(
