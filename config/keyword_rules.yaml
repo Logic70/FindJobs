@@ -1,0 +1,199 @@
+schema_version: 1
+rules_version: "2026.07.2"
+
+# Minimum job document-frequency for a candidate keyword to be included.
+min_job_count: 5
+
+# Minimum distinct companies for a candidate keyword to be included.
+min_company_count: 2
+
+# Maximum keywords to output (top-N by job count).
+max_keywords: 80
+
+# ---------------------------------------------------------------------------
+# Jieba custom dictionary -- technology terms that the default dictionary may
+# not segment correctly. Each entry is added to jieba before segmentation.
+# ---------------------------------------------------------------------------
+user_dict:
+  - 大模型
+  - 大语言模型
+  - 智能体
+  - 微服务
+  - 向量数据库
+  - 知识图谱
+  - 多模态
+  - 端到端
+  - 零信任
+  - 红蓝对抗
+  - 蓝军
+  - 溯源分析
+  - 安全运营中心
+  - 威胁情报
+  - 安全左移
+  - 漏洞挖掘
+  - 模糊测试
+  - 渗透测试
+  - 应急响应
+  - 供应链安全
+  - 态势感知
+  - 数据合规
+  - 隐私计算
+  - 联邦学习
+  - 提示注入
+  - 对抗样本
+  - 模型安全
+  - 推理加速
+  - 模型量化
+  - 服务网格
+  - 云原生
+  - 容器编排
+  - 边缘计算
+  - 数据湖
+  - 数据仓库
+  - 实时计算
+  - 流式计算
+  - 特征工程
+  - 模型服务
+  - 推荐系统
+
+# ---------------------------------------------------------------------------
+# Candidate aliases map variant forms to canonical display names.
+# Applied before counting to merge equivalent terms. Formal skills and domain
+# signals continue to come from market_taxonomy.yaml.
+# ---------------------------------------------------------------------------
+aliases:
+  Redis: [redis]
+  MySQL: [mysql]
+  PostgreSQL: [postgres, postgresql]
+  Elasticsearch: [elastic search, elasticsearch]
+  Kafka: [apache kafka, kafka]
+  gRPC: [grpc]
+  Spark: [apache spark, spark]
+  Flink: [apache flink, flink]
+  Hadoop: [apache hadoop, hadoop]
+  GitOps: [gitops]
+  DevOps: [devops]
+  云原生: [cloud native, cloud-native]
+  Kubernetes: [K8s, k8s, K8S]
+  Go: [Golang, golang]
+  TypeScript: [typescript]
+  JavaScript: [javascript]
+  C++: [C/C++, c/c++, Cpp]
+  NodeJS: [Node.js, nodejs]
+
+# ---------------------------------------------------------------------------
+# Stop words -- recruitment jargon and generic terms excluded from discovery.
+# Applied case-insensitively after jieba segmentation and alias normalization.
+# ---------------------------------------------------------------------------
+stopwords:
+  # Recruitment boilerplate
+  - 负责
+  - 参与
+  - 相关
+  - 具备
+  - 熟悉
+  - 掌握
+  - 精通
+  - 能够
+  - 能力
+  - 经验
+  - 优先
+  - 加分
+  - 要求
+  - 岗位
+  - 工作
+  - 项目
+  - 业务
+  - 技术
+  - 系统
+  - 平台
+  - 服务
+  - 开发
+  - 研发
+  - 设计
+  - 建设
+  - 维护
+  - 支持
+  - 推动
+  - 团队
+  - 良好
+  - 较强
+  - 以上
+  - 以及
+  - 具有
+  - 领域
+  - 方向
+  - 较好
+  - 扎实
+  - 一定
+  - 了解
+  - 理解
+  - 善于
+  - 乐于
+  - 热爱
+  - 有兴趣
+  - 更佳
+  - 者佳
+  - 者优先
+  - 优先考虑
+  - 优先条件
+  - 加分项
+  - 任职要求
+  - 岗位职责
+  - 工作要求
+  - 职位描述
+  - 岗位要求
+  - 工作职责
+  - 岗位描述
+  - 学历
+  - 本科
+  - 硕士
+  - 博士
+  - 及以上
+  # Common structural words
+  - 的
+  - 和
+  - 与
+  - 或
+  - 及
+  - 等
+  - 对
+  - 在
+  - 为
+  - 有
+  - 中
+  - 年
+  - 月
+  - 日
+  # English stop words
+  - solution
+  - solutions
+  - responsible
+  - responsibilities
+  - requirement
+  - requirements
+  - experience
+  - preferred
+  - familiar
+  - proficient
+  - ability
+  - skills
+  - development
+  - engineering
+  - engineer
+  - design
+  - system
+  - platform
+  - service
+  - team
+  - the
+  - and
+  - for
+  - with
+  - you
+  - our
+
+# ---------------------------------------------------------------------------
+# Minimum token length in characters. Tokens shorter than this are discarded.
+# ---------------------------------------------------------------------------
+min_token_length: 2

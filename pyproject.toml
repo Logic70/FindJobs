@@ -24,6 +24,7 @@ dependencies = [
     "cryptography>=49.0.0",
     "python-docx",
     "pypdf",
+    "jieba>=0.42.1",
 ]
 
 [project.scripts]

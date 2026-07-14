@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from findjobs.keyword_analysis import KeywordRules
 from findjobs.market_analysis import (
     MarketAnalysisError,
     analyze_market,
@@ -223,6 +224,33 @@ class TestRequirementSignals:
         assert skill(result, "model_training")["job_count"] == 1
         assert skill(result, "ai_platform_engineering")["job_count"] == 2
         assert domain_signal(result, "llm_domain")["job_count"] == 4
+
+    def test_discovered_candidates_do_not_enter_personal_advice(self, taxonomy) -> None:
+        rules = KeywordRules(
+            schema_version=1,
+            rules_version="test",
+            min_job_count=1,
+            min_company_count=1,
+            max_keywords=80,
+            stopwords=frozenset({"熟悉", "经验"}),
+            aliases=(("redis", "Redis"),),
+        )
+        result = analyze_market(
+            [make_row(requirements="熟悉 Redis，有生产环境经验")],
+            taxonomy,
+            profile=RecommendationProfile(skills=("Redis",)),
+            keyword_rules=rules,
+            as_of=date(2026, 7, 14),
+        )
+
+        candidate = next(
+            item
+            for item in result["keyword_analysis"]["keywords"]
+            if item["kind"] == "candidate" and item["name"] == "Redis"
+        )
+        advice_text = json.dumps(result["personal_advice"], ensure_ascii=False)
+
+        assert candidate["id"] not in advice_text
 
     def test_required_preferred_and_unspecified_are_separate(self, taxonomy) -> None:
         rows = [

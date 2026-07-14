@@ -17,6 +17,14 @@ from typing import Any, Iterable
 import yaml
 
 from findjobs.job_types import split_job_types
+from findjobs.keyword_analysis import (
+    KeywordDefinition,
+    KeywordDocument,
+    KeywordRules,
+    analyze_keywords,
+    default_keyword_rules,
+    load_keyword_rules,
+)
 from findjobs.locations import split_locations
 from findjobs.recommendation_profile import (
     RecommendationProfile,
@@ -69,6 +77,7 @@ class MarketTaxonomy:
 class MarketAnalysisRun:
     jobs_path: Path
     taxonomy_path: Path
+    keyword_rules_path: Path | None
     profile_used: bool
     json_output: Path
     markdown_output: Path
@@ -833,6 +842,7 @@ def analyze_market(
     taxonomy: MarketTaxonomy,
     *,
     profile: RecommendationProfile | None = None,
+    keyword_rules: KeywordRules | None = None,
     as_of: date | None = None,
 ) -> dict[str, Any]:
     """Analyze full exported rows without database, network, or AI access."""
@@ -866,11 +876,56 @@ def analyze_market(
     )
     overall_skill_coverage = {item["id"]: item["job_coverage"] for item in skills}
     groups = _build_groups(jobs, taxonomy, overall_skill_coverage)
+    keyword_definitions = (
+        *(
+            KeywordDefinition(
+                id=term.id,
+                name=term.name,
+                kind="skill",
+                category=term.category,
+                aliases=term.aliases,
+            )
+            for term in taxonomy.skills
+        ),
+        *(
+            KeywordDefinition(
+                id=term.id,
+                name=term.name,
+                kind="domain_signal",
+                category=term.category,
+                aliases=term.aliases,
+            )
+            for term in taxonomy.domain_signals
+        ),
+    )
+    keyword_documents = [
+        KeywordDocument(
+            job_id=job.job_id,
+            title=str(job.row.get("title") or ""),
+            company_key=job.company_slug,
+            company_name=job.company_name,
+            role_family_key=job.role_family_id,
+            role_family_name=job.role_family_name,
+            locations=job.locations,
+            requirements=str(job.row.get("requirements") or "").strip(),
+            responsibilities=str(job.row.get("responsibilities") or "").strip(),
+            requirement_skill_ids=frozenset(job.requirement_skills),
+            requirement_domain_signal_ids=frozenset(job.requirement_domain_signals),
+            work_skill_ids=job.work_skills,
+            work_domain_signal_ids=job.work_domain_signals,
+        )
+        for job in jobs
+    ]
+    keyword_analysis = analyze_keywords(
+        keyword_documents,
+        keyword_definitions,
+        keyword_rules or default_keyword_rules(),
+    )
 
     experience = Counter(_experience_band(job.required_years) for job in jobs)
     education = Counter(job.education_level or "未明确" for job in jobs)
     result: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "taxonomy_version": taxonomy.taxonomy_version,
         "as_of": actual_date.isoformat(),
         "input_fingerprint": _input_fingerprint(rows),
@@ -902,6 +957,7 @@ def analyze_market(
         "traits": traits,
         "groups": groups,
         "skill_combinations": _skill_combinations(jobs, taxonomy),
+        "keyword_analysis": keyword_analysis,
         "personal_advice": None,
         "fact_boundary": (
             "Requirements statistics use explicit requirements text only. "
@@ -1252,6 +1308,7 @@ def run_market_analysis(
     *,
     jobs_path: Path,
     taxonomy_path: Path,
+    keyword_rules_path: Path | None = None,
     json_output: Path,
     markdown_output: Path,
     profile_path: Path | None = None,
@@ -1260,10 +1317,21 @@ def run_market_analysis(
     """Load facts, analyze them, and publish a rollback-safe report pair."""
     rows = _load_jsonl(jobs_path)
     taxonomy = load_market_taxonomy(taxonomy_path)
+    keyword_rules = (
+        load_keyword_rules(keyword_rules_path)
+        if keyword_rules_path is not None
+        else default_keyword_rules()
+    )
     profile: RecommendationProfile | None = None
     if profile_path is not None and profile_path.exists():
         profile = load_recommendation_profile(profile_path)
-    result = analyze_market(rows, taxonomy, profile=profile, as_of=as_of)
+    result = analyze_market(
+        rows,
+        taxonomy,
+        profile=profile,
+        keyword_rules=keyword_rules,
+        as_of=as_of,
+    )
     json_content = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     markdown_content = render_market_markdown(result)
     write_market_outputs(
@@ -1275,6 +1343,7 @@ def run_market_analysis(
     return MarketAnalysisRun(
         jobs_path=jobs_path,
         taxonomy_path=taxonomy_path,
+        keyword_rules_path=keyword_rules_path,
         profile_used=profile is not None,
         json_output=json_output,
         markdown_output=markdown_output,

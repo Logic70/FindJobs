@@ -80,7 +80,7 @@ def test_cli_generates_consistent_json_and_markdown(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     data = json.loads(json_output.read_text(encoding="utf-8"))
     markdown = markdown_output.read_text(encoding="utf-8")
-    assert data["schema_version"] == 2
+    assert data["schema_version"] == 3
     assert data["sample"]["analyzed_jobs"] == 1
     assert data["quality"]["requirements_available_jobs"] == 1
     assert str(data["quality"]["requirements_available_jobs"]) in markdown
