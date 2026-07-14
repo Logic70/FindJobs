@@ -1,307 +1,271 @@
 # FindJobs
 
-A local job-collection application that collects jobs from official company
-career pages, stores them in SQLite, and provides a local web UI plus export
-files for AI-assisted analysis.
+本地职位采集应用 —— 仅从公司官网或官网明确链接的 ATS 系统采集职位，存入 SQLite 数据库，提供本地 Web 界面及结构化导出文件，支持 AI 辅助分析。
 
-## Quick Start
+## 快速启动
 
 ```bash
+# 安装依赖
 uv sync
-findjobs init
-findjobs weekly --live
-findjobs serve
+
+# 初始化数据库
+uv run findjobs init
+
+# 采集并启动 Web 界面
+uv run findjobs weekly --live
+uv run findjobs serve
 ```
 
-Open the web UI at `http://127.0.0.1:8000/jobs`.
+打开浏览器访问 `http://127.0.0.1:8000/jobs`。
 
-## Scope
+项目默认使用 `uv run findjobs <command>` 运行。也可通过 `pip install -e .` 注册 `findjobs` 命令后直接使用 `findjobs <command>`。
 
-- Collect official company career pages only.
-- Do not collect Huawei or Huawei affiliates.
-- Do not collect third-party job boards.
-- Salary is stored only when the official source discloses it. Undisclosed
-  salary is shown as `未披露`.
-- AI jobs exclude title-level and job-type-level algorithm roles: if the title
-  or job type contains `算法`, the job must not receive `AI` or `AI Security`
-  tags.
-- Algorithm roles are excluded entirely, including security algorithm roles.
+## 采集范围与立场
 
-## Export
+- **仅采集公司官网或官网明确链接的 ATS（如飞书、Moka、北森等）**，不采集第三方招聘平台（猎聘、BOSS 直聘、拉勾等）。
+- **不采集华为**，配置加载器拒绝任何引用华为的来源。
+- **聚焦非算法 AI 工程与网络安全工程岗位**：
+  - 标题或职位类型含"算法"的岗位一律排除，包括安全算法岗位。
+  - 排除与 AI/安全工程无关的普通风控策略、经营分析、商业分析、数据分析、产品、销售和项目管理等职能岗；风控平台、安全合规平台等明确研发岗位仍可保留。
+  - 安全方向聚焦渗透测试、SDL、AppSec、DevSecOps、安全研发、安全架构、数据安全和隐私工程等，排除普通审批、审计与合规职能岗。
+- **薪资仅保存官网披露的事实**，不做任何估算或推算。未披露薪资一律标记为 `未披露`（`salary_disclosed: false`）。
 
-Export collected jobs as structured data for analysis:
+## Web 界面
+
+启动 `uv run findjobs serve` 后访问：
+
+| 页面 | 路径 | 功能 |
+|------|------|------|
+| **职位列表** | `/jobs` | 浏览、筛选、搜索全部已采集职位 |
+| **职位详情** | `/jobs/{id}` | 查看完整职位描述、职责与要求 |
+| **推荐** | `/recommendations` | 基于个人资料的评分排序推荐 |
+| **市场分析** | `/market` | 关键词云与需求分布统计 |
+| **采集记录** | `/runs` | 查看各来源采集运行历史 |
+
+### 筛选器
+
+职位列表页面支持以下筛选维度：
+
+- **公司** — 按公司名称筛选
+- **规范化地域** — 基于数据库中的原始地点字段经规范化拆分后的地域值
+- **岗位类型** — 基于规范化后的职位类别
+- **标签** — `AI` / `Security` / `AI Security`
+- **状态** — active（活跃）/ missing（消失）/ archived（归档）
+- **相关状态** — target（目标）/ review（待审）/ excluded（排除）
+- **薪资披露** — 仅显示已披露或未披露薪资的职位
+
+### 职责与要求
+
+职位详情页面分别展示从官网描述中提取的 `responsibilities`（工作职责）、`requirements`（任职要求）和保留的官方原文；来源未提供某部分时明确显示“未提供”，不推断缺失内容。
+
+### 用户标记
+
+每个职位可设置 **收藏**、**已忽略**、**已投递** 三种标记。标记语义如下：
+
+- 标记"已忽略"时自动删除"已投递"标记，保留"收藏"
+- 标记"已投递"时自动删除"已忽略"标记，保留"收藏"
+- "收藏"与"已投递"可共存
+
+### 关键词云与分布
+
+市场分析页面（`/market`）展示：
+
+- 技能需求关键词云
+- 按公司、岗位族系、地域的职位分布
+- 技能需求覆盖率分析
+- 个人化学习建议（需存在 profile 文件）
+
+需先运行 `uv run findjobs market-analyze` 生成分析数据。
+
+## 来源配置
+
+当前配置 **29 个来源**，其中 **28 个启用**（`is_active: true`）。
+
+“已启用”表示来源会参与实时采集，不等于它已经在当前本地数据库完成过采集。可通过 `uv run findjobs sources` 查看每个来源最近一次运行状态和岗位数量。
+
+**阿里巴巴中央人才目录**（`alibaba-talent`）已停用，原因：中央官方目录页面，职位已通过已验证的阿里子站来源采集。以下 5 个阿里 verified 子站均处于启用状态：
+
+- 阿里云招聘（careers.aliyun.com）
+- 通义招聘（careers-tongyi.alibaba.com）
+- 夸克招聘（talent.quark.cn）
+- 钉钉招聘（talent.dingtalk.com）
+- Holding 招聘（talent-holding.alibaba.com）
+
+编辑 `config/sources.yaml` 增删或启用来源。使用 `uv run findjobs sources` 审计来源覆盖状态。
+
+### 当前公司列表
+
+按类别排列：
+
+**互联网科技**
+腾讯 Tencent · 阿里巴巴 Alibaba · 百度 Baidu · 字节跳动 ByteDance · 快手 Kuaishou · 小米 Xiaomi · 美团 Meituan · 蚂蚁集团 Ant Group · 京东 JD · 网易 NetEase · 科大讯飞 iFlyTek
+
+**AI 原生**
+深度求索 DeepSeek · 智谱 AI Z.ai（Zhipu AI）· 月之暗面 Moonshot AI（Kimi）· MiniMax · 零一万物 01.AI · 百川智能 Baichuan AI · 面壁智能 ModelBest（MiniCPM）· 商汤科技 SenseTime · **阶跃星辰 StepFun**（当前仅校园招聘来源）
+
+**安全厂商**
+长亭科技 Chaitin · 深信服 Sangfor · 奇安信 Qianxin · **天融信 TopSec**
+
+## 命令参考
+
+### 数据采集与导出
 
 ```bash
-findjobs export
-findjobs export --since 7 --format jsonl --output reports/weekly/jobs.jsonl
-findjobs export --since 14 --format csv --output reports/weekly/jobs.csv
-findjobs export --tag AI --status active --salary-disclosed true
-findjobs export --company tencent --format jsonl
+# 仅采集（不运行分析）
+uv run findjobs collect --live
+
+# 采集 + 导出 + 本地分析
+uv run findjobs weekly --live
+
+# 使用离线数据重跑分析
+uv run findjobs weekly --no-live
+
+# 导出为结构化文件
+uv run findjobs export --since 7 --format jsonl --output reports/weekly/jobs.jsonl
+uv run findjobs export --since 14 --format csv
+uv run findjobs export --tag AI --status active --salary-disclosed true
+uv run findjobs export --company tencent --format jsonl
 ```
 
-Export fields:
+导出字段：`id`、`company_slug`、`company_name`、`title`、`location`、`job_type`、`status`、`salary_text`、`salary_min`、`salary_max`、`salary_currency`、`salary_period`、`salary_disclosed`、`matched_tags`、`url`、`first_seen_at`、`last_seen_at`、`published_at`。
 
-`id`, `company_slug`, `company_name`, `title`, `location`, `job_type`,
-`status`, `salary_text`, `salary_min`, `salary_max`, `salary_currency`,
-`salary_period`, `salary_disclosed`, `matched_tags`, `url`,
-`first_seen_at`, `last_seen_at`, `published_at`.
+支持 `--detail-level full` 导出包含职责与要求描述的完整数据。
 
-No salary estimation or inference is performed. If the source did not disclose
-a salary, `salary_disclosed` is `false` and the numeric fields are empty.
-
-## Market Demand Analysis
-
-Analyze the existing full export without database, network, or AI access:
+### 市场分析
 
 ```bash
-findjobs weekly --no-live --profile profile/profile.md
-findjobs market-analyze --as-of 2026-07-14
+# 基于已导出的完整数据分析需求（无需数据库、网络或 AI）
+uv run findjobs market-analyze --as-of 2026-07-14
+
+# 指定个人资料以包含个性化建议
+uv run findjobs market-analyze --profile profile/profile.md
+
+# 排除个人分析
+uv run findjobs market-analyze --no-profile-analysis
 ```
 
-The command reads `reports/match/jobs-full.jsonl`, the versioned taxonomy in
-`config/market_taxonomy.yaml`, and keyword rules in
-`config/keyword_rules.yaml`. It writes one structured report:
+读取 `reports/match/jobs-full.jsonl`、`config/market_taxonomy.yaml` 和 `config/keyword_rules.yaml`，输出 `reports/market/market-analysis.json`，供 Web UI `/market` 页面消费。
 
-- `reports/market/market-analysis.json`: reproducible market statistics and
-  evidence consumed by the local Web UI.
-
-Start the Web UI and open `/market` for the complete report, keyword cloud,
-and company, role-family, and location distributions:
+### 个人资料
 
 ```bash
-findjobs serve
+# 从模板初始化个人资料
+uv run findjobs profile init
+
+# 从简历（DOCX/PDF）导入，自动提取技能和经历
+uv run findjobs profile import my-resume.docx
 ```
 
-The primary sample contains unique `active + target` non-algorithm jobs.
-Skill requirement coverage uses non-empty `requirements` only. Missing
-requirements remain unknown, while skills found only in `responsibilities`
-are reported separately as work-content signals. Personal advice is omitted
-when the profile is absent, and the market report still succeeds. Use
-`--no-profile-analysis` for an explicitly profile-free report.
-Broad terms such as `LLM` are reported as domain signals rather than concrete
-skills, so they do not affect skill combinations or personal learning advice.
-Automatically discovered candidate keywords are also exploratory only and do
-not affect profile coverage, recommendations, or learning priorities.
+个人资料文件（`profile/profile.md` 和 `profile/profile.json`）及源简历文件（`.docx`、`.pdf`）已被 `.gitignore` 排除。
 
-## AI Workflows
+### 推荐
 
-Workflow prompt templates are provided in `workflows/`:
+```bash
+# 基于个人资料对活跃职位评分排序
+uv run findjobs recommend --limit 50
 
-| Prompt | Purpose |
-|---|---|
-| `workflows/weekly_summary.md` | Summarise a week's job facts |
-| `workflows/match_analysis.md` | Match jobs against your profile |
-| `workflows/priority_ranking.md` | Rank matches for application priority |
-| `workflows/career_advice.md` | Produce development and learning advice |
-| `workflows/adapter_repair.md` | Diagnose adapter failures from logs |
+# 导出为 JSON
+uv run findjobs recommend --format json --output reports/match/recommendations.json
+```
 
-### Manual Usage
+评分过程不修改数据库，不调用 AI。
 
-1. Initialize your local profile and fill in your background, target cities,
-   salary expectations, and preferences:
+### 其他命令
 
-   ```bash
-   findjobs profile init
-   ```
-2. Export job facts:
+| 命令 | 用途 |
+|------|------|
+| `uv run findjobs sources` | 审计来源配置与采集状态 |
+| `uv run findjobs adapter-audit` | 检查适配器质量门禁 |
+| `uv run findjobs prune` | 重新分类存储的职位（dry-run 默认） |
+| `uv run findjobs details-backfill` | 回填规范化职责与要求（dry-run 默认） |
+| `uv run findjobs relevance-audit` | 只读分类器相关性审计（不修改数据库） |
+| `uv run findjobs analyze weekly` | 纯本地分析已导出数据（不触发采集） |
 
-   ```bash
-   findjobs export --since 7 --format jsonl --output reports/weekly/jobs.jsonl
-   ```
+## AI 工作流
 
-3. Run the deterministic local analysis:
+`workflows/` 目录提供 AI 提示词模板，供外部 AI CLI 工具消费：
 
-   ```bash
-   findjobs weekly --live
-   ```
+| 模板 | 用途 |
+|------|------|
+| `workflows/weekly_summary.md` | 总结一周职位动态 |
+| `workflows/match_analysis.md` | 对照个人资料匹配职位 |
+| `workflows/priority_ranking.md` | 对匹配结果排序优先级 |
+| `workflows/career_advice.md` | 生成发展建议与学习方向 |
+| `workflows/adapter_repair.md` | 从采集日志诊断适配器故障 |
 
-   Outputs:
+所有模板均遵守以下约束：仅消费导出数据，不抓取或编造额外职位，不估算未披露薪资，不写入数据库。
 
-   - `reports/weekly/<date>-summary.md`
-   - `reports/weekly/ai-security.jsonl`
-   - `reports/weekly/<date>-analysis-manifest.json`
-   - `reports/match/<date>-matches.md` and
-     `reports/priority/<date>-priorities.md` when `profile/profile.md` exists
-   - `reports/match/<date>-career-advice.md` when `profile/profile.md` exists
-   - `reports/match/<date>-profile-needed.md` when the real profile is missing
-
-4. Use the workflow templates with the exported file. The prompts require the
-   AI to consume only exported facts, never invent jobs, never estimate
-   undisclosed salary, and never write to the database.
-
-### Windows CMD + opencode
-
-For the weekly report workflow on Windows, run from `cmd.exe`:
+### Windows CMD 快速脚本
 
 ```cmd
+:: 使用 opencode
 tools\run_weekly_opencode.cmd
-```
 
-The script exports `reports\weekly\jobs.jsonl`, runs local weekly analysis,
-invokes opencode, and writes AI output to
-`reports\weekly\opencode-weekly-output.md`.
-
-The script lets opencode use the model configured in your local opencode
-session. In the current setup that default is deepseek-v4-flash, so no model
-argument is required.
-
-If opencode is blocked by quota or rate limits, inspect:
-
-```cmd
-opencode debug paths
-```
-
-Then open the `log` path shown by opencode. Provider errors such as
-`Monthly usage limit reached` or `Rate limit exceeded` indicate an opencode
-account/provider limit, not a FindJobs collection or export failure.
-
-### Windows CMD + claude
-
-For the same weekly report workflow using `claude` (Claude Code CLI), run from
-`cmd.exe`:
-
-```cmd
+:: 使用 Claude Code CLI
 tools\run_weekly_claude.cmd
 ```
 
-The script runs the deterministic local analysis, then invokes `claude -p` with
-`--model deepseek-v4-flash[1M]` and asks Claude to read
-`workflows\weekly_summary.md` plus `reports\weekly\jobs.jsonl` directly from
-the repository. AI output is written to
-`reports\weekly\claude-weekly-output.md`.
+### 工作流约束
 
-The Claude call is analysis-only — it reads exported facts and produces a
-report without modifying files or the database.
+- 仅消费已导出的事实数据
+- 不获取或编造数据之外的职位
+- 不估算未披露薪资
+- 不写入数据库
 
-If `claude` is not found, ensure the Claude Code CLI is installed and available
-on `PATH`. For edit delegation, prefer the WSL fallback documented in
-`docs/claude-code-status.md` until the Windows edit smoke also passes.
+## 计划任务（Windows）
 
-### Workflow Guardrails
-
-Every workflow template enforces these rules:
-
-- Consume exported facts only.
-- Do not fetch or invent jobs outside the data.
-- Do not estimate undisclosed salary.
-- Do not write to the database.
-- Do not hallucinate job facts.
-
-## Config
-
-Edit `config/sources.yaml` to add or enable sources. By default Tencent,
-Baidu, ByteDance, Kuaishou, Xiaomi, Meituan, Ant Group, JD, NetEase, iFlyTek,
-DeepSeek, Z.ai/Zhipu, Moonshot AI/Kimi, MiniMax, 01.AI, Baichuan AI,
-ModelBest, SenseTime, and verified Alibaba business sub-sites are enabled
-because their official or official-linked ATS endpoints have adapter tests and
-live smoke coverage. The Alibaba central talent page stays inactive because it
-is an official directory; the verified sub-site sources collect the jobs. Set
-`is_active: true` on a source to enable it for `collect --live`.
-
-Use `findjobs sources` to audit configured source coverage.
-
-The config loader rejects entries referencing Huawei.
-
-## Troubleshooting
-
-### No Data In The Web UI
-
-The web UI shows persisted jobs. If the database is empty, run:
-
-```bash
-findjobs init
-findjobs weekly --live
-```
-
-Then refresh `http://127.0.0.1:8000/jobs`. If a source fails, its error is
-printed to the console and logged in the `collect_runs` table.
-
-`collect --live` prints a `collecting...` line before each source. Large
-official ATS sources such as ByteDance/Feishu can take several minutes because
-the adapter paginates shared AI/Security keywords and deduplicates the result
-before storing only relevant jobs.
-
-### Weekly Schedule
-
-Install a weekly scheduled workflow via Windows Task Scheduler:
+通过 Windows Task Scheduler 设置每周定时采集和分析：
 
 ```cmd
-rem Preview the default command (Monday 09:00, dry-run by default):
-findjobs schedule install
+rem 预览默认命令（每周一 09:00，仅预览）：
+uv run findjobs schedule install
 
-rem Install with custom day and time:
-findjobs schedule install --weekday FRI --time 14:30 --no-dry-run
+rem 安装实际任务（每周五 14:30）：
+uv run findjobs schedule install --weekday FRI --time 14:30 --no-dry-run
 
-rem Collection-only (no export/analysis):
-findjobs schedule install --collect-only --no-dry-run
+rem 仅采集（不导出/分析）：
+uv run findjobs schedule install --collect-only --no-dry-run
 
-rem Check the task status:
-findjobs schedule status
+rem 查询任务状态：
+uv run findjobs schedule status
 
-rem Run the task immediately:
-findjobs schedule run
-
-rem Actually trigger the task:
-findjobs schedule run --no-dry-run
+rem 立即触发任务：
+uv run findjobs schedule run --no-dry-run
 ```
 
-**Default behavior.** `findjobs schedule install` runs in dry-run mode by
-default, printing the `schtasks /create` command without executing it.
-Pass `--no-dry-run` to register the task (Windows only).
+默认行为：`schedule install` 运行于 dry-run 模式，仅打印 `schtasks` 命令而不执行。需 `--no-dry-run` 才能实际注册任务。
 
-The default schedule is **every Monday at 09:00** (`--weekday MON --time 09:00`).
-The generated task action enters this project directory and runs
-`uv run findjobs weekly --live`, so it does not depend on Task Scheduler
-finding the `findjobs` console script on `PATH`. Use `--collect-only` when
-you want collection without export/analysis.
+**日志与摘要：** 每次执行记录在 `reports/logs/` 目录：
 
-**Flags and semantics.** The generated task includes `/IT` (run only while
-the task user is logged in), `/RL LIMITED` (run without elevated privileges),
-and `/F` (replace an existing task with the same name). Locking the screen does
-not log the user out; signing out does, so a signed-out task user will not run
-this task.
+| 文件 | 说明 |
+|------|------|
+| `weekly_<时间戳>_<PID>_<UUID>.log` | 完整执行日志 |
+| `weekly_<时间戳>_<PID>_<UUID>.summary.json` | 结构化执行摘要 |
+| `weekly-latest.json` | 最近一次成功获取锁的运行摘要 |
 
-Task Scheduler power settings may prevent a task from starting on battery or
-stop it after switching to battery. Inspect or change those settings in the
-task's **Conditions** tab when laptop behavior matters. A live network
-connection is required to collect jobs from official career pages.
+**退出码：** 0 成功，1 失败，2 并发阻塞。
 
-**Reports and logs.** Per-attempt output is written under
-`reports/logs/`:
-
-| File | Meaning |
-|---|---|
-| `reports/logs/weekly_<timestamp>_<pid>_<uuid>.log` | Full attempt log (console output + diagnostics) |
-| `reports/logs/weekly_<timestamp>_<pid>_<uuid>.summary.json` | Structured per-attempt summary (status, duration, errors) |
-| `reports/logs/weekly-latest.json` | Atomically updated copy of the most recent lock-acquired run summary |
-
-**Exit codes in per-attempt summary JSON:**
-
-| Exit code | Meaning |
-|---|---|
-| 0 | Success |
-| 1 | Workflow or source-collection failure |
-| 2 | Concurrent-run block (process lock held by another instance) |
-
-A blocked attempt writes its own summary but does not replace
-`weekly-latest.json`, which continues to describe the latest run that acquired
-the process lock.
-
-**Run command.** `findjobs schedule run` also defaults to dry-run. Pass
-`--no-dry-run` to trigger the task immediately via
-`schtasks /run /tn FindJobsWeeklyWorkflow`. Scheduler failures produce
-exit code 1 with the error output shown.
-
-## Development
+## 开发
 
 ```bash
 uv sync --group dev
-pytest
+uv run pytest
+uv run ruff check src tests
 ```
 
-For parallel company-adapter work, use
-`docs/parallel-adapter-tasks.md` as the task boundary and integration gate.
+并行开发多公司适配器时，参见 `docs/parallel-adapter-tasks.md`。
 
-## License
+### 被 Git 忽略的文件
+
+以下文件和目录已被 `.gitignore` 排除，不会提交到版本库：
+
+- 个人资料（`profile/profile.md`、`profile/profile.json`）
+- 简历文档（`*.docx`、`*.pdf`）
+- SQLite 数据库（`*.db`）
+- 生成的周报和分析报告（`reports/` 下各子目录）
+- 虚拟环境（`.venv/`、`.venv-wsl/`）
+- 采集日志（`*.log`）
+
+## 许可
 
 MIT
