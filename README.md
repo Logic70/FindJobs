@@ -58,13 +58,19 @@ findjobs weekly --no-live --profile profile/profile.md
 findjobs market-analyze --as-of 2026-07-14
 ```
 
-The command reads `reports/match/jobs-full.jsonl` and the versioned taxonomy
-in `config/market_taxonomy.yaml`. It writes:
+The command reads `reports/match/jobs-full.jsonl`, the versioned taxonomy in
+`config/market_taxonomy.yaml`, and keyword rules in
+`config/keyword_rules.yaml`. It writes one structured report:
 
 - `reports/market/market-analysis.json`: reproducible market statistics and
-  evidence for downstream analysis.
-- `reports/market/market-analysis.md`: company, role-family, job-type, location,
-  skill, trait, skill-combination, and personal-advice tables.
+  evidence consumed by the local Web UI.
+
+Start the Web UI and open `/market` for the complete report, keyword cloud,
+and company, role-family, and location distributions:
+
+```bash
+findjobs serve
+```
 
 The primary sample contains unique `active + target` non-algorithm jobs.
 Skill requirement coverage uses non-empty `requirements` only. Missing
@@ -74,6 +80,8 @@ when the profile is absent, and the market report still succeeds. Use
 `--no-profile-analysis` for an explicitly profile-free report.
 Broad terms such as `LLM` are reported as domain signals rather than concrete
 skills, so they do not affect skill combinations or personal learning advice.
+Automatically discovered candidate keywords are also exploratory only and do
+not affect profile coverage, recommendations, or learning priorities.
 
 ## AI Workflows
 

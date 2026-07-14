@@ -83,7 +83,9 @@ def test_loads_versioned_keyword_rules() -> None:
     assert loaded.schema_version == 1
     assert loaded.min_job_count == 5
     assert loaded.min_company_count == 2
-    assert loaded.max_keywords == 80
+    assert loaded.max_keywords == 60
+    assert loaded.min_token_length == 2
+    assert "大模型" in loaded.user_dict
 
 
 def test_invalid_keyword_rules_fail_with_context(tmp_path: Path) -> None:
@@ -143,6 +145,28 @@ def test_formal_aliases_do_not_reappear_as_candidates() -> None:
     assert keyword(result, "kubernetes")["job_count"] == 2
     assert not any(
         item["kind"] == "candidate" and item["name"].casefold() in {"k8s", "kubernetes"}
+        for item in result["keywords"]
+    )
+
+
+def test_candidate_alias_cannot_duplicate_formal_skill() -> None:
+    configured_rules = rules(aliases=(("golang", "Go"), ("go", "Go")))
+    definitions = (*DEFINITIONS, definition("go", "Go", "skill", "Golang"))
+    documents = [
+        document(
+            job_id=str(index),
+            company_key=f"company-{index % 2}",
+            requirements="熟悉 Golang",
+            requirement_skill_ids=frozenset({"go"}),
+        )
+        for index in range(1, 3)
+    ]
+
+    result = analyze_keywords(documents, definitions, configured_rules)
+
+    assert keyword(result, "go")["job_count"] == 2
+    assert not any(
+        item["kind"] == "candidate" and item["name"] == "Go"
         for item in result["keywords"]
     )
 

@@ -80,7 +80,6 @@ class MarketAnalysisRun:
     keyword_rules_path: Path | None
     profile_used: bool
     json_output: Path
-    markdown_output: Path
     analyzed_jobs: int
     requirements_available_jobs: int
 
@@ -972,239 +971,6 @@ def analyze_market(
     return result
 
 
-def _percent(value: Any) -> str:
-    return f"{float(value) * 100:.1f}%"
-
-
-def render_market_markdown(result: dict[str, Any]) -> str:
-    """Render a deterministic Markdown view from an analysis result."""
-    sample = result["sample"]
-    quality = result["quality"]
-
-    def group_name(item: dict[str, Any]) -> str:
-        suffix = "（小样本）" if item["small_sample"] else ""
-        return f"{item['name']}{suffix}"
-
-    def top_names(item: dict[str, Any]) -> str:
-        return "、".join(skill["name"] for skill in item["skills"][:5]) or "无"
-
-    def domain_summary(item: dict[str, Any]) -> str:
-        signals = item["domain_signals"]
-        if not signals:
-            return "无"
-        return "、".join(
-            f"{signal['name']} {_percent(signal['job_coverage'])}"
-            for signal in signals[:3]
-        )
-
-    def distinctive_names(item: dict[str, Any]) -> str:
-        minimum_count = max(
-            3,
-            int(item["requirements_available_jobs"] * 0.02 + 0.999),
-        )
-        distinctive = sorted(
-            (
-                skill
-                for skill in item["skills"]
-                if skill["job_count"] >= minimum_count
-                and skill.get("specificity", 0) >= 1.2
-            ),
-            key=lambda skill: (
-                -skill["specificity"],
-                -skill["job_count"],
-                skill["name"],
-            ),
-        )
-        return "、".join(skill["name"] for skill in distinctive[:3]) or "无"
-
-    lines = [
-        f"# {result['as_of']} 岗位市场需求画像",
-        "",
-        f"词典版本：`{result['taxonomy_version']}`。本报告只分析官网导出事实。",
-        "",
-        "## 样本与数据质量",
-        f"- 输入岗位：{sample['input_jobs']}；进入主样本：{sample['analyzed_jobs']}。",
-        f"- 公司：{quality['company_count']}；规范化城市：{quality['city_count']}。",
-        f"- 有效岗位职责：{quality['responsibilities_available_jobs']}。",
-        f"- 有效岗位要求：{quality['requirements_available_jobs']}；要求未知：{quality['requirements_unknown_jobs']}。",
-        f"- 岗位要求覆盖率：{_percent(quality['requirements_coverage'])}。",
-        "",
-        "## 新增岗位窗口",
-        f"- 近7天：{result['new_jobs_by_window']['7_days']}。",
-        f"- 近30天：{result['new_jobs_by_window']['30_days']}。",
-        f"- 近90天：{result['new_jobs_by_window']['90_days']}。",
-        "- 该指标使用官网发布时间，缺失时使用首次发现时间，不代表历史在招总量趋势。",
-        "",
-        "## 领域信号（不是具体技能）",
-        "领域信号只表示岗位文本提到相应技术领域，不参与技能组合、画像覆盖或学习优先级。",
-        "",
-        "| 领域信号 | 岗位数/有效要求 | 岗位提及率 | 公司数/有效公司 | 职责提及 |",
-        "|---|---:|---:|---:|---:|",
-    ]
-    for item in [entry for entry in result["domain_signals"] if entry["job_count"] > 0]:
-        lines.append(
-            f"| {item['name']} | {item['job_count']}/{item['job_denominator']} "
-            f"| {_percent(item['job_coverage'])} | {item['company_count']}/{item['company_denominator']} "
-            f"| {item['work_content_job_count']} |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## 技能要求",
-            "| 技能 | 类别 | 岗位数/有效要求 | 岗位覆盖率 | 公司数/有效公司 | 明确要求 | 优先项 | 职责提及 |",
-            "|---|---|---:|---:|---:|---:|---:|---:|",
-        ]
-    )
-    for item in [entry for entry in result["skills"] if entry["job_count"] > 0][:20]:
-        lines.append(
-            f"| {item['name']} | {item['category']} | {item['job_count']}/{item['job_denominator']} "
-            f"| {_percent(item['job_coverage'])} | {item['company_count']}/{item['company_denominator']} "
-            f"| {item['required_count']} | {item['preferred_count']} | {item['work_content_job_count']} |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## 特质要求",
-            "| 特质 | 岗位数/有效要求 | 岗位覆盖率 | 公司数/有效公司 |",
-            "|---|---:|---:|---:|",
-        ]
-    )
-    for item in [entry for entry in result["traits"] if entry["job_count"] > 0][:15]:
-        lines.append(
-            f"| {item['name']} | {item['job_count']}/{item['job_denominator']} "
-            f"| {_percent(item['job_coverage'])} | {item['company_count']}/{item['company_denominator']} |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## 岗位方向",
-            "| 方向 | 岗位数 | 有效要求 | 领域提及 | 高频技能 | 相对特色技能 |",
-            "|---|---:|---:|---|---|---|",
-        ]
-    )
-    for item in result["groups"]["role_family"]:
-        lines.append(
-            f"| {group_name(item)} | {item['job_count']} | {item['requirements_available_jobs']} "
-            f"| {domain_summary(item)} | {top_names(item)} | {distinctive_names(item)} |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## 公司需求画像",
-            "| 公司 | 岗位数 | 有效要求 | 领域提及 | 高频技能 | 相对特色技能 |",
-            "|---|---:|---:|---|---|---|",
-        ]
-    )
-    for item in result["groups"]["company"][:20]:
-        lines.append(
-            f"| {group_name(item)} | {item['job_count']} | {item['requirements_available_jobs']} "
-            f"| {domain_summary(item)} | {top_names(item)} | {distinctive_names(item)} |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## 岗位类型与地域",
-            "### 岗位类型",
-        ]
-    )
-    for item in result["groups"]["job_type"][:12]:
-        lines.append(
-            f"- {group_name(item)}：{item['job_count']} 个岗位，"
-            f"有效要求 {item['requirements_available_jobs']}，高频技能 {top_names(item)}。"
-        )
-    lines.extend(["", "### 地域"])
-    for item in result["groups"]["location"][:15]:
-        lines.append(
-            f"- {group_name(item)}：{item['job_count']} 个岗位，"
-            f"有效要求 {item['requirements_available_jobs']}。"
-        )
-
-    lines.extend(["", "## 高频技能组合"])
-    combinations = result["skill_combinations"][:15]
-    if combinations:
-        for item in combinations:
-            lines.append(
-                f"- {' + '.join(item['skill_names'])}：{item['job_count']} 个岗位，"
-                f"涉及 {item['company_count']} 家公司。"
-            )
-    else:
-        lines.append("- 当前有效要求中没有跨两个以上岗位重复出现的技能组合。")
-
-    advice = result.get("personal_advice")
-    if advice is not None:
-        lines.extend(["", "## 个人求职建议"])
-        if advice["role_directions"]:
-            for item in advice["role_directions"][:8]:
-                lines.append(
-                    f"- {item['action']}：{item['role_family_name']}，"
-                    f"高频技能信号覆盖 {_percent(item['top_skill_coverage'])}，"
-                    f"样本 {item['job_count']} 个岗位。"
-                )
-        else:
-            lines.append("- 当前没有具备有效岗位要求的方向可供比较。")
-
-        alignment = advice.get("experience_alignment")
-        if alignment is not None:
-            lines.append(
-                f"- 经验门槛：明确年限的岗位中，"
-                f"{alignment['within_profile_experience_jobs']} 个不高于画像年限，"
-                f"{alignment['above_profile_experience_jobs']} 个高于画像年限；"
-                f"另有 {alignment['unknown_required_experience_jobs']} 个岗位未明确年限。"
-            )
-
-        lines.extend(["", "### 公司关注建议"])
-        if advice["company_directions"]:
-            for item in advice["company_directions"][:8]:
-                lines.append(
-                    f"- {item['action']}：{item['company_name']}，"
-                    f"高频技能信号覆盖 {_percent(item['top_skill_coverage'])}，"
-                    f"样本 {item['job_count']} 个岗位。"
-                )
-        else:
-            lines.append("- 当前没有可比较的公司需求样本。")
-
-        lines.extend(["", "### 简历证据补充"])
-        if advice["resume_evidence"]:
-            for item in advice["resume_evidence"][:8]:
-                lines.append(
-                    f"- {item['skill_name']}：市场覆盖 "
-                    f"{item['job_count']}/{item['job_denominator']} 个有效要求岗位、"
-                    f"{item['company_count']}/{item['company_denominator']} 家公司；"
-                    f"{item['suggestion']}"
-                )
-        else:
-            lines.append("- 当前画像技能未命中市场词典，暂不建议补写关键词。")
-
-        lines.extend(["", "### 学习优先级"])
-        if advice["learning_priorities"]:
-            for item in advice["learning_priorities"][:10]:
-                lines.append(
-                    f"- [{item['priority']}] {item['skill_name']}：{item['evidence']}；"
-                    f"目标方向覆盖率 {_percent(item['target_role_coverage'])}。"
-                )
-        else:
-            lines.append("- 当前画像已覆盖样本中识别到的技能信号。")
-        lines.append(f"- 边界：{advice['advice_boundary']}")
-
-    lines.extend(
-        [
-            "",
-            "## 事实边界",
-            "- “大模型领域提及”等领域信号不是具体技能，不参与技能决策。",
-            "- 技能要求覆盖率只使用非空 `requirements`；要求缺失保持未知。",
-            "- 职责中的技能单独统计，不作为明确岗位要求。",
-            "- 小样本公司和方向只展示样本量，不据此推断整体招聘偏好。",
-            "- 新增岗位窗口不是历史在招总量趋势。",
-        ]
-    )
-    return "\n".join(lines) + "\n"
-
-
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         raise MarketAnalysisError(f"Full job export not found: {path}")
@@ -1235,73 +1001,19 @@ def _exclusive_temp(parent: Path, tag: str) -> Path:
     return Path(raw_path)
 
 
-def _restore_output(destination: Path, backup: Path | None) -> None:
-    if backup is None:
-        destination.unlink(missing_ok=True)
-    else:
-        backup.replace(destination)
-
-
-def write_market_outputs(
+def write_market_output(
     *,
     json_output: Path,
-    markdown_output: Path,
     json_content: str,
-    markdown_content: str,
 ) -> None:
-    """Write the JSON/Markdown pair with same-directory rollback backups."""
-    if json_output.resolve() == markdown_output.resolve():
-        raise MarketAnalysisError("JSON and Markdown outputs must be different paths")
+    """Atomically replace the single JSON market report."""
     json_output.parent.mkdir(parents=True, exist_ok=True)
-    markdown_output.parent.mkdir(parents=True, exist_ok=True)
-
-    json_existed = json_output.exists()
-    markdown_existed = markdown_output.exists()
-    temporary: set[Path] = set()
-    keep: set[Path] = set()
-    backup_json: Path | None = None
-    backup_markdown: Path | None = None
+    stage_json = _exclusive_temp(json_output.parent, "json")
     try:
-        if json_existed:
-            backup_json = _exclusive_temp(json_output.parent, "backup")
-            temporary.add(backup_json)
-            backup_json.write_bytes(json_output.read_bytes())
-        if markdown_existed:
-            backup_markdown = _exclusive_temp(markdown_output.parent, "backup")
-            temporary.add(backup_markdown)
-            backup_markdown.write_bytes(markdown_output.read_bytes())
-
-        stage_json = _exclusive_temp(json_output.parent, "json")
-        temporary.add(stage_json)
         stage_json.write_text(json_content, encoding="utf-8")
-        stage_markdown = _exclusive_temp(markdown_output.parent, "markdown")
-        temporary.add(stage_markdown)
-        stage_markdown.write_text(markdown_content, encoding="utf-8")
-
-        try:
-            stage_json.replace(json_output)
-            stage_markdown.replace(markdown_output)
-        except Exception as exc:
-            restore_errors: list[str] = []
-            for destination, backup, existed in (
-                (json_output, backup_json, json_existed),
-                (markdown_output, backup_markdown, markdown_existed),
-            ):
-                try:
-                    _restore_output(destination, backup if existed else None)
-                except Exception as restore_exc:
-                    restore_errors.append(f"{destination}: {restore_exc}")
-                    if backup is not None:
-                        keep.add(backup)
-            if restore_errors:
-                raise RuntimeError(
-                    "Market report rollback incomplete: " + "; ".join(restore_errors)
-                ) from exc
-            raise
+        stage_json.replace(json_output)
     finally:
-        for path in temporary:
-            if path not in keep:
-                path.unlink(missing_ok=True)
+        stage_json.unlink(missing_ok=True)
 
 
 def run_market_analysis(
@@ -1310,11 +1022,10 @@ def run_market_analysis(
     taxonomy_path: Path,
     keyword_rules_path: Path | None = None,
     json_output: Path,
-    markdown_output: Path,
     profile_path: Path | None = None,
     as_of: date | None = None,
 ) -> MarketAnalysisRun:
-    """Load facts, analyze them, and publish a rollback-safe report pair."""
+    """Load facts, analyze them, and atomically publish a JSON report."""
     rows = _load_jsonl(jobs_path)
     taxonomy = load_market_taxonomy(taxonomy_path)
     keyword_rules = (
@@ -1333,12 +1044,9 @@ def run_market_analysis(
         as_of=as_of,
     )
     json_content = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
-    markdown_content = render_market_markdown(result)
-    write_market_outputs(
+    write_market_output(
         json_output=json_output,
-        markdown_output=markdown_output,
         json_content=json_content,
-        markdown_content=markdown_content,
     )
     return MarketAnalysisRun(
         jobs_path=jobs_path,
@@ -1346,7 +1054,6 @@ def run_market_analysis(
         keyword_rules_path=keyword_rules_path,
         profile_used=profile is not None,
         json_output=json_output,
-        markdown_output=markdown_output,
         analyzed_jobs=result["sample"]["analyzed_jobs"],
         requirements_available_jobs=result["quality"]["requirements_available_jobs"],
     )

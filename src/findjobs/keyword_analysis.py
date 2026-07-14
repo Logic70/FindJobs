@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import math
 import re
 import unicodedata
 from collections import Counter, defaultdict
@@ -28,6 +27,8 @@ class KeywordRules:
     max_keywords: int
     stopwords: frozenset[str]
     aliases: tuple[tuple[str, str], ...]
+    user_dict: tuple[str, ...] = ()
+    min_token_length: int = 2
 
 
 @dataclass(frozen=True)
@@ -148,6 +149,16 @@ def load_keyword_rules(path: Path) -> KeywordRules:
             seen_aliases[key] = canonical
     aliases.extend(sorted(seen_aliases.items()))
 
+    user_dict_raw = raw.get("user_dict", [])
+    if not isinstance(user_dict_raw, list):
+        raise KeywordAnalysisError(f"{path}: user_dict must be a list")
+    user_dict = tuple(
+        sorted(
+            {_required_string(value, "user_dict[]", path) for value in user_dict_raw},
+            key=lambda item: (item.casefold(), item),
+        )
+    )
+
     return KeywordRules(
         schema_version=1,
         rules_version=_required_string(raw.get("rules_version"), "rules_version", path),
@@ -162,6 +173,10 @@ def load_keyword_rules(path: Path) -> KeywordRules:
         ),
         stopwords=stopwords,
         aliases=tuple(aliases),
+        user_dict=user_dict,
+        min_token_length=_required_positive_int(
+            raw.get("min_token_length", 2), "min_token_length", path
+        ),
     )
 
 
@@ -200,6 +215,8 @@ def default_keyword_rules() -> KeywordRules:
             }
         ),
         aliases=(),
+        user_dict=(),
+        min_token_length=2,
     )
 
 
@@ -216,6 +233,7 @@ class _CandidateTokenizer:
             *(_normalized(item) for item in rules.stopwords),
             *(_normalized(item) for item in _BUILTIN_STOPWORDS),
         }
+        self._min_token_length = rules.min_token_length
         phrases: set[str] = set()
         for definition in definitions:
             for alias in {definition.name, *definition.aliases}:
@@ -225,6 +243,7 @@ class _CandidateTokenizer:
         for alias, canonical in rules.aliases:
             phrases.add(alias)
             phrases.add(canonical)
+        phrases.update(rules.user_dict)
         for phrase in sorted(phrases, key=lambda item: (-len(item), item.casefold())):
             self._tokenizer.add_word(phrase, freq=2_000_000)
 
@@ -238,8 +257,13 @@ class _CandidateTokenizer:
         lowered_text = _normalized(normalized_text)
         candidates: dict[str, str] = {}
         for alias, canonical in self._alias_names.items():
-            if alias and alias in lowered_text:
-                candidates[_normalized(canonical)] = canonical
+            canonical_key = _normalized(canonical)
+            if (
+                canonical_key not in self._formal_aliases
+                and alias
+                and self._contains_alias(lowered_text, alias)
+            ):
+                candidates[canonical_key] = canonical
         for raw_token in raw_tokens:
             token = unicodedata.normalize("NFKC", raw_token).strip(
                 " \t\r\n,，.;；:：、()（）[]【】{}<>《》\"'`|!"
@@ -262,14 +286,19 @@ class _CandidateTokenizer:
                 candidates[key] = display
         return candidates
 
+    @staticmethod
+    def _contains_alias(text: str, alias: str) -> bool:
+        if re.fullmatch(r"[a-z0-9 ]+", alias):
+            pattern = rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])"
+            return re.search(pattern, text) is not None
+        return alias in text
+
     def _is_candidate(self, key: str) -> bool:
         if key in self._formal_aliases or key in self._stopwords:
             return False
         if _PURE_NUMBER_RE.fullmatch(key):
             return False
-        if _CJK_RE.search(key) and len(key) == 1:
-            return False
-        if not _CJK_RE.search(key) and len(key) < 2:
+        if len(key) < self._min_token_length:
             return False
         return any(character.isalnum() or _CJK_RE.match(character) for character in key)
 
@@ -525,10 +554,3 @@ def analyze_keywords(
             "reported separately and candidates never affect recommendations."
         ),
     }
-
-
-def keyword_cloud_size(job_count: int, maximum: int) -> float:
-    """Map document frequency to a stable relative size for HTML rendering."""
-    if job_count <= 0 or maximum <= 0:
-        return 1.0
-    return round(1.0 + 1.5 * math.log1p(job_count) / math.log1p(maximum), 4)

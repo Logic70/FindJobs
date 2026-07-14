@@ -1,5 +1,5 @@
 schema_version: 2
-taxonomy_version: "2026.07.2"
+taxonomy_version: "2026.07.3"
 
 # Ordered from the most specific direction to broad fallbacks. A job receives
 # the first matching family; unmatched jobs fall back to their stored tags.
@@ -55,7 +55,7 @@ skills:
   - {id: ai_platform_engineering, name: AI平台工程, category: AI平台, aliases: [AI平台, AI 平台, AI平台建设, AI平台研发, 大模型平台建设, 大模型平台研发, 机器学习平台, 模型平台建设, 训练平台建设, AI基础设施, LLM Platform, ML Platform Engineering, AI Platform Engineering]}
   - {id: agent, name: Agent/智能体, category: AI应用, aliases: [智能体, Agent, Agentic]}
   - {id: rag, name: RAG, category: AI应用, aliases: [RAG, 检索增强生成, retrieval augmented generation]}
-  - {id: prompt_engineering, name: Prompt工程, category: AI应用, aliases: [Prompt工程, 提示词工程, Prompt Engineering]}
+  - {id: prompt_engineering, name: Prompt工程, category: AI应用, aliases: [Prompt, Prompt工程, 提示词工程, Prompt Engineering]}
   - {id: langchain_llamaindex, name: LangChain/LlamaIndex, category: AI应用, aliases: [LangChain, LlamaIndex]}
   - {id: mcp, name: MCP, category: AI应用, aliases: [MCP, Model Context Protocol]}
   - {id: fine_tuning, name: 模型微调, category: AI工程, aliases: [模型微调, 微调, Fine-tuning, Finetuning, LoRA, SFT]}

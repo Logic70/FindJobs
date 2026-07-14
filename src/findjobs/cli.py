@@ -778,15 +778,15 @@ def market_analyze(
         "--output-json",
         help="Machine-readable analysis output.",
     ),
-    output_markdown: str = typer.Option(
-        "reports/market/market-analysis.md",
-        "--output-markdown",
-        help="Human-readable analysis report.",
-    ),
     as_of: str = typer.Option(
         None,
         "--as-of",
         help="Analysis date in YYYY-MM-DD format (defaults to today).",
+    ),
+    keyword_rules: str = typer.Option(
+        "config/keyword_rules.yaml",
+        "--keyword-rules",
+        help="Versioned keyword discovery rules YAML.",
     ),
 ):
     """Analyze skill and trait demand from an existing full job export."""
@@ -808,9 +808,9 @@ def market_analyze(
         result = run_market_analysis(
             jobs_path=Path(jobs),
             taxonomy_path=Path(taxonomy),
+            keyword_rules_path=Path(keyword_rules),
             profile_path=profile_path,
             json_output=Path(output_json),
-            markdown_output=Path(output_markdown),
             as_of=analysis_date,
         )
     except (MarketAnalysisError, OSError, ValueError) as exc:
@@ -822,7 +822,7 @@ def market_analyze(
         f"{result.requirements_available_jobs} with explicit requirements."
     )
     typer.echo(f"  json: {result.json_output}")
-    typer.echo(f"  markdown: {result.markdown_output}")
+    typer.echo("  html: open /market after running findjobs serve")
     if profile_analysis and not result.profile_used:
         typer.echo(f"  profile: {profile_path} not found; personal advice omitted.")
 

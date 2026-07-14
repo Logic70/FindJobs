@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}市场洞察{% endblock %}
+{% block body %}
+<h2>市场洞察</h2>
+
+{% if error_empty %}
+<p class="empty">{{ error_empty }}</p>
+{% else %}
+{% set sample = market.sample %}
+{% set quality = market.quality %}
+{% set keyword_analysis = market.keyword_analysis %}
+{% set keywords = keyword_analysis.keywords %}
+{% set initial_keyword = keywords[0] if keywords else none %}
+
+<div class="market-heading">
+    <div><strong>{{ market.as_of }}</strong> · 词典 {{ market.taxonomy_version }} · 关键词规则 {{ keyword_analysis.rules_version }}</div>
+    <div class="market-boundary">官网岗位事实，候选关键词不参与推荐评分。</div>
+</div>
+
+<section class="market-summary" aria-label="样本摘要">
+    <div><span>目标岗位</span><strong>{{ sample.analyzed_jobs }}</strong></div>
+    <div><span>有效要求</span><strong>{{ quality.requirements_available_jobs }}</strong></div>
+    <div><span>要求覆盖率</span><strong>{{ fmt_pct(quality.requirements_coverage) }}</strong></div>
+    <div><span>公司</span><strong>{{ quality.company_count }}</strong></div>
+    <div><span>城市</span><strong>{{ quality.city_count }}</strong></div>
+    <div><span>近30天新增</span><strong>{{ market.new_jobs_by_window['30_days'] }}</strong></div>
+</section>
+
+<section class="market-section" id="keywords">
+    <div class="market-section-heading">
+        <h3>关键词云</h3>
+        <div class="market-keyword-filters">
+            <label>
+                <span class="sr-only">关键词类型</span>
+                <select id="keyword-kind">
+                    <option value="all">全部类型</option>
+                    <option value="skill">正式技能</option>
+                    <option value="domain_signal">领域信号</option>
+                    <option value="candidate">候选关键词</option>
+                </select>
+            </label>
+            <label>
+                <span class="sr-only">搜索关键词</span>
+                <input id="keyword-search" type="search" placeholder="搜索关键词" autocomplete="off">
+            </label>
+        </div>
+    </div>
+    <div class="keyword-legend" aria-label="关键词分类">
+        <span class="legend-skill">正式技能</span>
+        <span class="legend-domain">领域信号</span>
+        <span class="legend-candidate">候选关键词</span>
+    </div>
+    <div class="keyword-cloud" id="keyword-cloud">
+        {% for item in keywords %}
+        <button type="button" class="keyword-word keyword-{{ item.kind }}{% if loop.first %} is-active{% endif %}"
+                data-keyword-id="{{ item.id }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">
+            {{ item.name }}
+        </button>
+        {% else %}
+        <p class="empty">当前阈值下没有可展示的关键词。</p>
+        {% endfor %}
+    </div>
+
+    <div class="keyword-detail" id="keyword-detail"{% if not initial_keyword %} hidden{% endif %}>
+        <div class="keyword-detail-heading">
+            <div>
+                <h3 id="keyword-detail-name">{{ initial_keyword.name if initial_keyword else '' }}</h3>
+                <span id="keyword-detail-kind" class="keyword-kind-label">{{ initial_keyword.category if initial_keyword else '' }}</span>
+            </div>
+            <div class="keyword-metrics" id="keyword-metrics">
+                {% if initial_keyword %}
+                <span><strong>{{ initial_keyword.job_count }}</strong>/{{ initial_keyword.job_denominator }} 岗位</span>
+                <span><strong>{{ fmt_pct(initial_keyword.job_coverage) }}</strong> 覆盖率</span>
+                <span><strong>{{ initial_keyword.company_count }}</strong> 家公司</span>
+                <span><strong>{{ initial_keyword.work_content_job_count }}</strong> 职责提及</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="keyword-dimension-tabs" role="tablist" aria-label="分布维度">
+            <button type="button" data-dimension="company" aria-selected="true">公司</button>
+            <button type="button" data-dimension="role_family" aria-selected="false">岗位方向</button>
+            <button type="button" data-dimension="location" aria-selected="false">地域</button>
+        </div>
+        <div class="keyword-distribution" id="keyword-distribution">
+            {% if initial_keyword %}
+            {% for row in initial_keyword.distributions.company %}
+            <div class="distribution-row">
+                <div class="distribution-label"><span>{{ row.name }}</span><strong>{{ row.job_count }}</strong></div>
+                <div class="distribution-track"><span style="width: {{ row.share_of_keyword * 100 }}%"></span></div>
+                <div class="distribution-meta">关键词占比 {{ fmt_pct(row.share_of_keyword) }} · 组内覆盖 {{ fmt_pct(row.group_coverage) }}</div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+
+        <div class="keyword-support-grid">
+            <div>
+                <h3>关联关键词</h3>
+                <div class="related-keywords" id="related-keywords">
+                    {% if initial_keyword %}
+                    {% for row in initial_keyword.related_keywords %}
+                    <button type="button" data-related-id="{{ row.id }}">{{ row.name }} · {{ row.job_count }}</button>
+                    {% else %}<span class="empty">无</span>{% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <h3>岗位证据</h3>
+                <ul class="keyword-examples" id="keyword-examples">
+                    {% if initial_keyword %}
+                    {% for job in initial_keyword.example_jobs %}
+                    <li><a href="/jobs/{{ job.job_id }}">{{ job.company_name }} · {{ job.title }}</a>{% if job.locations %} · {{ job.locations | join('、') }}{% endif %}</li>
+                    {% else %}<li class="empty">无</li>{% endfor %}
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="market-section">
+    <h3>领域信号与技能要求</h3>
+    <div class="market-two-column">
+        <div class="table-scroll">
+            <table>
+                <thead><tr><th>领域信号</th><th>岗位</th><th>覆盖率</th><th>职责提及</th></tr></thead>
+                <tbody>{% for item in market.domain_signals if item.job_count > 0 %}
+                <tr><td>{{ item.name }}</td><td>{{ item.job_count }}/{{ item.job_denominator }}</td><td>{{ fmt_pct(item.job_coverage) }}</td><td>{{ item.work_content_job_count }}</td></tr>
+                {% else %}<tr><td colspan="4" class="empty">无</td></tr>{% endfor %}</tbody>
+            </table>
+        </div>
+        <div class="table-scroll">
+            <table>
+                <thead><tr><th>技能</th><th>类别</th><th>岗位</th><th>覆盖率</th><th>职责提及</th></tr></thead>
+                <tbody>{% for item in market.skills[:20] if item.job_count > 0 %}
+                <tr><td>{{ item.name }}</td><td>{{ item.category }}</td><td>{{ item.job_count }}/{{ item.job_denominator }}</td><td>{{ fmt_pct(item.job_coverage) }}</td><td>{{ item.work_content_job_count }}</td></tr>
+                {% else %}<tr><td colspan="5" class="empty">无</td></tr>{% endfor %}</tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<section class="market-section">
+    <h3>岗位方向与公司画像</h3>
+    <div class="market-two-column">
+        <div class="table-scroll">
+            <table>
+                <thead><tr><th>方向</th><th>岗位</th><th>有效要求</th><th>高频技能</th></tr></thead>
+                <tbody>{% for group in market.groups.role_family %}
+                <tr><td>{{ group.name }}{% if group.small_sample %}（小样本）{% endif %}</td><td>{{ group.job_count }}</td><td>{{ group.requirements_available_jobs }}</td><td>{{ group.skills[:5] | map(attribute='name') | join('、') or '无' }}</td></tr>
+                {% endfor %}</tbody>
+            </table>
+        </div>
+        <div class="table-scroll">
+            <table>
+                <thead><tr><th>公司</th><th>岗位</th><th>有效要求</th><th>高频技能</th></tr></thead>
+                <tbody>{% for group in market.groups.company[:20] %}
+                <tr><td>{{ group.name }}{% if group.small_sample %}（小样本）{% endif %}</td><td>{{ group.job_count }}</td><td>{{ group.requirements_available_jobs }}</td><td>{{ group.skills[:5] | map(attribute='name') | join('、') or '无' }}</td></tr>
+                {% endfor %}</tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<section class="market-section">
+    <h3>岗位类型、地域与门槛</h3>
+    <div class="market-four-column">
+        <div><strong>岗位类型</strong><ul>{% for group in market.groups.job_type[:10] %}<li>{{ group.name }} <span>{{ group.job_count }}</span></li>{% endfor %}</ul></div>
+        <div><strong>地域</strong><ul>{% for group in market.groups.location[:12] %}<li>{{ group.name }} <span>{{ group.job_count }}</span></li>{% endfor %}</ul></div>
+        <div><strong>经验要求</strong><ul>{% for name, count in market.experience_distribution.items() %}<li>{{ name }} <span>{{ count }}</span></li>{% endfor %}</ul></div>
+        <div><strong>学历要求</strong><ul>{% for name, count in market.education_distribution.items() %}<li>{{ name }} <span>{{ count }}</span></li>{% endfor %}</ul></div>
+    </div>
+</section>
+
+<section class="market-section">
+    <h3>技能组合与特质</h3>
+    <div class="market-two-column">
+        <div><ul class="market-ranked-list">{% for item in market.skill_combinations[:15] %}<li><strong>{{ item.skill_names | join(' + ') }}</strong><span>{{ item.job_count }} 个岗位 · {{ item.company_count }} 家公司</span></li>{% else %}<li class="empty">无重复技能组合</li>{% endfor %}</ul></div>
+        <div class="table-scroll"><table><thead><tr><th>特质</th><th>岗位</th><th>覆盖率</th></tr></thead><tbody>{% for item in market.traits[:15] if item.job_count > 0 %}<tr><td>{{ item.name }}</td><td>{{ item.job_count }}/{{ item.job_denominator }}</td><td>{{ fmt_pct(item.job_coverage) }}</td></tr>{% endfor %}</tbody></table></div>
+    </div>
+</section>
+
+{% if market.personal_advice %}
+{% set advice = market.personal_advice %}
+<section class="market-section">
+    <h3>个人求职建议</h3>
+    <div class="market-two-column">
+        <div><strong>岗位方向</strong><ul class="market-ranked-list">{% for item in advice.role_directions[:8] %}<li><strong>{{ item.action }} · {{ item.role_family_name }}</strong><span>{{ item.job_count }} 个岗位 · 高频技能覆盖 {{ fmt_pct(item.top_skill_coverage) }}</span></li>{% endfor %}</ul></div>
+        <div><strong>公司关注</strong><ul class="market-ranked-list">{% for item in advice.company_directions[:8] %}<li><strong>{{ item.action }} · {{ item.company_name }}</strong><span>{{ item.job_count }} 个岗位 · 高频技能覆盖 {{ fmt_pct(item.top_skill_coverage) }}</span></li>{% endfor %}</ul></div>
+    </div>
+    <div class="market-two-column">
+        <div><strong>简历证据</strong><ul class="market-ranked-list">{% for item in advice.resume_evidence[:8] %}<li><strong>{{ item.skill_name }}</strong><span>{{ item.job_count }}/{{ item.job_denominator }} 个岗位 · {{ item.company_count }} 家公司</span></li>{% endfor %}</ul></div>
+        <div><strong>学习优先级</strong><ul class="market-ranked-list">{% for item in advice.learning_priorities[:10] %}<li><strong>{{ item.priority }} · {{ item.skill_name }}</strong><span>{{ item.evidence }}</span></li>{% endfor %}</ul></div>
+    </div>
+</section>
+{% endif %}
+
+<section class="market-section market-facts">
+    <h3>事实边界</h3>
+    <ul>
+        <li>领域信号不是具体技能，不参与技能决策。</li>
+        <li>要求缺失保持未知，职责提及不作为明确岗位要求。</li>
+        <li>候选关键词仅用于市场探索，不参与画像、推荐或学习建议。</li>
+        <li>{{ market.fact_boundary }}</li>
+        <li>{{ keyword_analysis.fact_boundary }}</li>
+    </ul>
+</section>
+
+<script id="market-keyword-data" type="application/json">{{ keyword_analysis | tojson }}</script>
+<script src="/static/market.js" defer></script>
+{% endif %}
+{% endblock %}

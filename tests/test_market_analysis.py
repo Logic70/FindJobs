@@ -11,7 +11,6 @@ from findjobs.market_analysis import (
     MarketAnalysisError,
     analyze_market,
     load_market_taxonomy,
-    render_market_markdown,
 )
 from findjobs.recommendation_profile import RecommendationProfile
 
@@ -71,7 +70,7 @@ def group(result: dict, dimension: str, key: str) -> dict:
 class TestTaxonomy:
     def test_loads_versioned_taxonomy(self, taxonomy) -> None:
         assert taxonomy.schema_version == 2
-        assert taxonomy.taxonomy_version == "2026.07.2"
+        assert taxonomy.taxonomy_version == "2026.07.3"
         assert taxonomy.skills_by_id["python"].name == "Python"
         assert taxonomy.domain_signals_by_id["llm_domain"].name == "大模型领域提及"
         assert "llm" not in taxonomy.skills_by_id
@@ -471,19 +470,3 @@ class TestOutput:
         first = analyze_market(rows, taxonomy, as_of=date(2026, 7, 14))
         second = analyze_market(rows, taxonomy, as_of=date(2026, 7, 14))
         assert first == second
-
-    def test_markdown_renders_json_facts(self, taxonomy) -> None:
-        result = analyze_market([make_row()], taxonomy, as_of=date(2026, 7, 14))
-        markdown = render_market_markdown(result)
-
-        assert "岗位市场需求画像" in markdown
-        assert "有效岗位要求" in markdown
-        assert str(result["quality"]["requirements_available_jobs"]) in markdown
-        assert "未披露薪资" not in markdown
-        assert "领域信号（不是具体技能）" in markdown
-        assert "大模型领域提及" in markdown
-
-    def test_markdown_marks_small_samples(self, taxonomy) -> None:
-        result = analyze_market([make_row()], taxonomy, as_of=date(2026, 7, 14))
-        markdown = render_market_markdown(result)
-        assert "小样本" in markdown

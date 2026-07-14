@@ -1,5 +1,5 @@
 schema_version: 1
-rules_version: "2026.07.2"
+rules_version: "2026.07.9"
 
 # Minimum job document-frequency for a candidate keyword to be included.
 min_job_count: 5
@@ -8,7 +8,7 @@ min_job_count: 5
 min_company_count: 2
 
 # Maximum keywords to output (top-N by job count).
-max_keywords: 80
+max_keywords: 60
 
 # ---------------------------------------------------------------------------
 # Jieba custom dictionary -- technology terms that the default dictionary may
@@ -55,6 +55,9 @@ user_dict:
   - 特征工程
   - 模型服务
   - 推荐系统
+  - 机器学习
+  - 高性能计算
+  - 消息队列
 
 # ---------------------------------------------------------------------------
 # Candidate aliases map variant forms to canonical display names.
@@ -73,13 +76,15 @@ aliases:
   Hadoop: [apache hadoop, hadoop]
   GitOps: [gitops]
   DevOps: [devops]
+  GPU: [gpu]
+  CUDA: [cuda]
+  API: [api]
+  React: [react]
+  SGLang: [sglang]
+  TensorFlow: [tensorflow]
+  Claude Code: [claude code]
+  Tool Calling: [tool calling]
   云原生: [cloud native, cloud-native]
-  Kubernetes: [K8s, k8s, K8S]
-  Go: [Golang, golang]
-  TypeScript: [typescript]
-  JavaScript: [javascript]
-  C++: [C/C++, c/c++, Cpp]
-  NodeJS: [Node.js, nodejs]
 
 # ---------------------------------------------------------------------------
 # Stop words -- recruitment jargon and generic terms excluded from discovery.
@@ -118,6 +123,178 @@ stopwords:
   - 团队
   - 良好
   - 较强
+  # More recruitment boilerplate
+  - 以上学历
+  - 学历要求
+  - 本科及以上
+  - 及以上学历
+  - 任职资格
+  - 感兴趣的
+  - 职位描述
+  # Overly generic standalone terms
+  - 专业
+  - 框架
+  - 学习
+  - 问题
+  - 解决
+  - 工具
+  - 基础
+  - 流程
+  - 方法
+  - 方案
+  - 应用
+  - 场景
+  - 构建
+  - 提升
+  - 持续
+  - 深入
+  - 落地
+  - 推进
+  - 探索
+  - 迭代
+  - 保障
+  - 负责
+  - 进行
+  - 完成
+  - 提供
+  - 实现
+  - 使用
+  - 结合
+  # Search keyword artifacts (lowercase, too generic)
+  - ai
+  # Communication/generic soft skills (covered by traits taxonomy)
+  - 沟通
+  - 协调
+  - 合作
+  - 协作
+  - 计算机
+  - 计算机相关
+  - 至少
+  - 架构
+  - 优化
+  - 工程
+  - 熟练掌握
+  - 主流
+  - 分项
+  - 分析
+  - 编程
+  - 原理
+  - 算法
+  - 语言
+  - 一种
+  - 模型
+  - 产品
+  - 独立
+  - 复杂
+  - 优秀
+  - 性能
+  - 数据
+  - 开源
+  - 代码
+  - 推理
+  - 编程语言
+  - 实践经验
+  - 深度
+  - 熟练
+  - 实际
+  - 快速
+  - 意识
+  - 安全
+  - 后端
+  - 管理
+  - 强烈
+  - 常见
+  - 实践
+  - 包括
+  - 人工智能
+  - 软件工程
+  - 责任心
+  - 一门
+  - 调优
+  - 精神
+  - 分布式
+  - 环境
+  - 核心
+  - 体系
+  - 工程化
+  - 常用
+  - 机制
+  - 热情
+  - 专业本科
+  - 训练
+  - 背景
+  - 解决问题
+  - 大规模
+  - 丰富
+  - 需求
+  - 高效
+  - 拥有
+  - 抽象
+  - 思维
+  - 驱动
+  - 编码
+  - coding
+  - 实战经验
+  - 计算机科学
+  - 计算
+  - 机器
+  - 交付
+  - 限于
+  - 质量
+  - 关注
+  - 习惯
+  - 调用
+  - 知识
+  - 测试
+  - 智能
+  - 行业
+  - 贡献
+  - 转化
+  - 消息
+  - 策略
+  - 功底
+  - 组件
+  - 可用
+  - 或者
+  - 以下
+  - 模块
+  - 深刻理解
+  - 逻辑
+  - 客户
+  - 解决方案
+  - 主导
+  - 清晰
+  - 任务
+  - 生态
+  - 处理
+  - 完整
+  - 大型
+  - 用户
+  - 研究
+  - 主动
+  - 基本
+  - 文档
+  - 协同
+  - 经历
+  - 规划
+  - 前沿
+  - 拆解
+  - 搭建
+  - 生产
+  - 社区
+  - code
+  - claude
+  - 定位
+  - 一个
+  - 软件
+  - 规范
+  - 互联网
+  - 高质量
+  - calling
+  - 认知
+  - 通过
+  - 效果
+  - 保持
   - 以上
   - 以及
   - 具有

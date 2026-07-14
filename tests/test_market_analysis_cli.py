@@ -7,11 +7,12 @@ import pytest
 from typer.testing import CliRunner
 
 from findjobs.cli import app
-from findjobs.market_analysis import write_market_outputs
+from findjobs.market_analysis import write_market_output
 
 
 runner = CliRunner()
 TAXONOMY_PATH = Path(__file__).parents[1] / "config" / "market_taxonomy.yaml"
+KEYWORD_RULES_PATH = Path(__file__).parents[1] / "config" / "keyword_rules.yaml"
 
 
 def full_row(**overrides: object) -> dict:
@@ -53,10 +54,9 @@ def write_jobs(path: Path, rows: list[dict]) -> None:
     )
 
 
-def test_cli_generates_consistent_json_and_markdown(tmp_path: Path) -> None:
+def test_cli_generates_single_json_report(tmp_path: Path) -> None:
     jobs = tmp_path / "jobs.jsonl"
     json_output = tmp_path / "reports" / "market.json"
-    markdown_output = tmp_path / "reports" / "market.md"
     write_jobs(jobs, [full_row()])
 
     result = runner.invoke(
@@ -67,10 +67,10 @@ def test_cli_generates_consistent_json_and_markdown(tmp_path: Path) -> None:
             str(jobs),
             "--taxonomy",
             str(TAXONOMY_PATH),
+            "--keyword-rules",
+            str(KEYWORD_RULES_PATH),
             "--output-json",
             str(json_output),
-            "--output-markdown",
-            str(markdown_output),
             "--as-of",
             "2026-07-14",
             "--no-profile-analysis",
@@ -79,11 +79,10 @@ def test_cli_generates_consistent_json_and_markdown(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     data = json.loads(json_output.read_text(encoding="utf-8"))
-    markdown = markdown_output.read_text(encoding="utf-8")
     assert data["schema_version"] == 3
     assert data["sample"]["analyzed_jobs"] == 1
     assert data["quality"]["requirements_available_jobs"] == 1
-    assert str(data["quality"]["requirements_available_jobs"]) in markdown
+    assert data["keyword_analysis"]["rules_version"] == "2026.07.9"
     assert data["personal_advice"] is None
 
 
@@ -100,10 +99,10 @@ def test_missing_default_profile_omits_advice(tmp_path: Path) -> None:
             str(tmp_path / "missing.md"),
             "--taxonomy",
             str(TAXONOMY_PATH),
+            "--keyword-rules",
+            str(KEYWORD_RULES_PATH),
             "--output-json",
             str(tmp_path / "out.json"),
-            "--output-markdown",
-            str(tmp_path / "out.md"),
         ],
     )
 
@@ -115,7 +114,6 @@ def test_missing_default_profile_omits_advice(tmp_path: Path) -> None:
 
 def test_invalid_date_leaves_no_outputs(tmp_path: Path) -> None:
     json_output = tmp_path / "out.json"
-    markdown_output = tmp_path / "out.md"
     result = runner.invoke(
         app,
         [
@@ -124,8 +122,6 @@ def test_invalid_date_leaves_no_outputs(tmp_path: Path) -> None:
             str(tmp_path / "jobs.jsonl"),
             "--output-json",
             str(json_output),
-            "--output-markdown",
-            str(markdown_output),
             "--as-of",
             "2026/07/14",
         ],
@@ -134,14 +130,12 @@ def test_invalid_date_leaves_no_outputs(tmp_path: Path) -> None:
     assert result.exit_code == 1
     assert "YYYY-MM-DD" in result.output
     assert not json_output.exists()
-    assert not markdown_output.exists()
 
 
 def test_invalid_jsonl_leaves_no_outputs(tmp_path: Path) -> None:
     jobs = tmp_path / "jobs.jsonl"
     jobs.write_text("{not-json}\n", encoding="utf-8")
     json_output = tmp_path / "out.json"
-    markdown_output = tmp_path / "out.md"
     result = runner.invoke(
         app,
         [
@@ -150,59 +144,56 @@ def test_invalid_jsonl_leaves_no_outputs(tmp_path: Path) -> None:
             str(jobs),
             "--taxonomy",
             str(TAXONOMY_PATH),
+            "--keyword-rules",
+            str(KEYWORD_RULES_PATH),
             "--output-json",
             str(json_output),
-            "--output-markdown",
-            str(markdown_output),
         ],
     )
 
     assert result.exit_code == 1
     assert "Invalid JSONL" in result.output
     assert not json_output.exists()
-    assert not markdown_output.exists()
 
 
-def test_identical_outputs_are_rejected_without_overwrite(tmp_path: Path) -> None:
-    output = tmp_path / "same.out"
-    output.write_text("keep", encoding="utf-8")
+def test_removed_markdown_option_is_rejected(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["market-analyze", "--output-markdown", str(tmp_path / "out.md")],
+    )
 
-    with pytest.raises(ValueError, match="different paths"):
-        write_market_outputs(
-            json_output=output,
-            markdown_output=output,
-            json_content="new-json",
-            markdown_content="new-markdown",
-        )
-
-    assert output.read_text(encoding="utf-8") == "keep"
+    assert result.exit_code != 0
+    assert "No such option" in result.output
+    assert not (tmp_path / "out.md").exists()
 
 
-def test_second_replace_failure_restores_both_outputs(
+def test_write_market_output_replaces_existing_file_atomically(tmp_path: Path) -> None:
+    output = tmp_path / "market.json"
+    output.write_text("old", encoding="utf-8")
+
+    write_market_output(json_output=output, json_content="new")
+
+    assert output.read_text(encoding="utf-8") == "new"
+    assert not list(tmp_path.glob(".market_*.tmp"))
+
+
+def test_replace_failure_preserves_existing_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     json_output = tmp_path / "market.json"
-    markdown_output = tmp_path / "market.md"
     json_output.write_text("old-json", encoding="utf-8")
-    markdown_output.write_text("old-markdown", encoding="utf-8")
-    original_replace = Path.replace
 
-    def fail_markdown_stage(path: Path, target: Path) -> Path:
-        if path.name.startswith(".market_markdown_"):
-            raise OSError("markdown replace failed")
-        return original_replace(path, target)
+    def fail_replace(path: Path, target: Path) -> Path:
+        raise OSError("json replace failed")
 
-    monkeypatch.setattr(Path, "replace", fail_markdown_stage)
-    with pytest.raises(OSError, match="markdown replace failed"):
-        write_market_outputs(
+    monkeypatch.setattr(Path, "replace", fail_replace)
+    with pytest.raises(OSError, match="json replace failed"):
+        write_market_output(
             json_output=json_output,
-            markdown_output=markdown_output,
             json_content="new-json",
-            markdown_content="new-markdown",
         )
 
     assert json_output.read_text(encoding="utf-8") == "old-json"
-    assert markdown_output.read_text(encoding="utf-8") == "old-markdown"
     assert not list(tmp_path.glob(".market_*.tmp"))
 
 

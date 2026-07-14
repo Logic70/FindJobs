@@ -52,6 +52,13 @@ def _mark_label(mark_type: str) -> str:
     return _MARK_LABELS.get(mark_type, mark_type)
 
 
+def _format_percent(value: object) -> str:
+    try:
+        return f"{float(value) * 100:.1f}%"
+    except (TypeError, ValueError):
+        return "0.0%"
+
+
 # Chinese labels for tier values shown in the recommendations UI.
 _TIER_LABELS = {
     "high": "高匹配",
@@ -246,6 +253,7 @@ templates.env.globals["fmt_dt"] = _format_dt
 templates.env.globals["is_safe_url"] = is_safe_url
 templates.env.globals["mark_label"] = _mark_label
 templates.env.globals["sort_marks"] = _sort_marks
+templates.env.globals["fmt_pct"] = _format_percent
 
 
 def _get_filter_options(session: Session) -> dict:
@@ -298,8 +306,11 @@ def _get_filter_options(session: Session) -> dict:
     }
 
 
-def create_app(db_path: str | Path | None = None,
-               profile_path: str | Path | None = None) -> FastAPI:
+def create_app(
+    db_path: str | Path | None = None,
+    profile_path: str | Path | None = None,
+    market_report_path: str | Path | None = None,
+) -> FastAPI:
     """Create and configure the FastAPI application.
 
     Args:
@@ -307,6 +318,8 @@ def create_app(db_path: str | Path | None = None,
                  path from :func:`findjobs.paths.get_default_db_path` is used.
         profile_path: Path to the recommendation profile file.  When ``None``
                       the default ``<project_root>/profile/profile.md`` is used.
+        market_report_path: Path to the generated market-analysis JSON. When
+                            ``None`` the project reports directory is used.
 
     Returns:
         A configured :class:`FastAPI` instance ready to serve.
@@ -320,11 +333,15 @@ def create_app(db_path: str | Path | None = None,
     engine = create_engine(f"sqlite:///{db_path}", echo=False, poolclass=NullPool)
     SessionLocal = sessionmaker(bind=engine)
 
-    if profile_path is None:
-        from findjobs.paths import get_project_root
+    from findjobs.paths import get_project_root
 
-        profile_path = get_project_root() / "profile" / "profile.md"
+    project_root = get_project_root()
+    if profile_path is None:
+        profile_path = project_root / "profile" / "profile.md"
     resolved_profile = Path(profile_path)
+    if market_report_path is None:
+        market_report_path = project_root / "reports" / "market" / "market-analysis.json"
+    resolved_market_report = Path(market_report_path)
 
     app = FastAPI(title="FindJobs")
 
@@ -343,6 +360,41 @@ def create_app(db_path: str | Path | None = None,
     def _load_profile():
         """Load recommendation profile, raising on missing/invalid."""
         return load_recommendation_profile(resolved_profile)
+
+    def _load_market_report() -> dict:
+        try:
+            report = json.loads(resolved_market_report.read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            raise ValueError("尚未生成市场分析，请先运行 findjobs market-analyze。") from exc
+        except json.JSONDecodeError as exc:
+            raise ValueError("市场分析文件损坏，请重新运行 findjobs market-analyze。") from exc
+        except OSError as exc:
+            raise ValueError(f"无法读取市场分析文件：{exc}") from exc
+        if not isinstance(report, dict) or report.get("schema_version") != 3:
+            raise ValueError("市场分析文件版本不受支持，请重新生成。")
+        keyword_analysis = report.get("keyword_analysis")
+        if not isinstance(keyword_analysis, dict) or not isinstance(
+            keyword_analysis.get("keywords"), list
+        ):
+            raise ValueError("市场分析文件缺少关键词数据，请重新生成。")
+        return report
+
+    @app.get("/market")
+    def market(request: Request):
+        try:
+            report = _load_market_report()
+        except ValueError as exc:
+            return templates.TemplateResponse(
+                request,
+                "market.html",
+                {"error_empty": str(exc)},
+                status_code=503,
+            )
+        return templates.TemplateResponse(
+            request,
+            "market.html",
+            {"market": report},
+        )
 
     # ---- GET /recommendations ----
 
