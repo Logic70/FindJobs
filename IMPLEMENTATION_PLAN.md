@@ -449,7 +449,7 @@
 - GitHub Actions 干净安装测试。
 - 最终全量回归、Live smoke、Web 检查、数据库备份恢复演练。
 
-**当前进度**: StepFun、TopSec 两个来源及相关分类回归已完成离线验收，中文 README 已按当前命令和 28/29 来源状态更新，本轮全量测试与 Ruff 已通过。来源覆盖文档、GitHub Actions、正式 LICENSE 等其余任务仍待后续完成。
+**当前进度**: StepFun、TopSec 两个来源及相关分类回归已完成离线验收；中文 README 已按当前命令和 28/29 来源状态更新并补充无个人信息的实际页面截图；公开 Git 历史已完成凭据、PII 和敏感文件审计。本轮全量测试与 Ruff 已通过。来源覆盖文档、GitHub Actions、正式 LICENSE 等其余任务仍待后续完成。
 
 **状态**: 进行中
 
