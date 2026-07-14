@@ -35,7 +35,9 @@
                 <select id="keyword-kind">
                     <option value="all">全部类型</option>
                     <option value="skill">正式技能</option>
+                    {% if market.domain_signals %}
                     <option value="domain_signal">领域信号</option>
+                    {% endif %}
                     <option value="candidate">候选关键词</option>
                 </select>
             </label>
@@ -47,7 +49,9 @@
     </div>
     <div class="keyword-legend" aria-label="关键词分类">
         <span class="legend-skill">正式技能</span>
+        {% if market.domain_signals %}
         <span class="legend-domain">领域信号</span>
+        {% endif %}
         <span class="legend-candidate">候选关键词</span>
     </div>
     <div class="keyword-cloud" id="keyword-cloud">
@@ -123,8 +127,9 @@
 </section>
 
 <section class="market-section">
-    <h3>领域信号与技能要求</h3>
-    <div class="market-two-column">
+    <h3>{% if market.domain_signals %}领域信号与技能要求{% else %}技能要求{% endif %}</h3>
+    <div{% if market.domain_signals %} class="market-two-column"{% endif %}>
+        {% if market.domain_signals %}
         <div class="table-scroll">
             <table>
                 <thead><tr><th>领域信号</th><th>岗位</th><th>覆盖率</th><th>职责提及</th></tr></thead>
@@ -133,6 +138,7 @@
                 {% else %}<tr><td colspan="4" class="empty">无</td></tr>{% endfor %}</tbody>
             </table>
         </div>
+        {% endif %}
         <div class="table-scroll">
             <table>
                 <thead><tr><th>技能</th><th>类别</th><th>岗位</th><th>覆盖率</th><th>职责提及</th></tr></thead>
@@ -211,6 +217,7 @@
 </section>
 
 <script id="market-keyword-data" type="application/json">{{ keyword_analysis | tojson }}</script>
+<script src="/static/d3-cloud.js" defer></script>
 <script src="/static/market.js" defer></script>
 {% endif %}
 {% endblock %}

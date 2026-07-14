@@ -290,16 +290,29 @@ td:last-child { white-space: normal; }
 .keyword-cloud {
     display: flex; flex-wrap: wrap; align-content: center; align-items: baseline;
     justify-content: center; gap: 6px 14px; min-height: 180px; padding: 18px 12px;
-    border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; background: #fff;
+    position: relative; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd;
+    background: #fff;
+}
+.keyword-cloud.is-positioned {
+    display: block; overflow: hidden;
+}
+.keyword-cloud.is-positioned .keyword-word {
+    position: absolute; margin: 0; max-width: none; white-space: nowrap;
+    transform-origin: center; line-height: 1;
 }
 .keyword-word {
     appearance: none; border: 0; border-bottom: 2px solid transparent;
     background: transparent; cursor: pointer; padding: 3px 1px; line-height: 1.25;
     letter-spacing: 0; max-width: 100%; overflow-wrap: anywhere;
-    font-size: var(--keyword-font-size, 16px);
+    font-size: var(--keyword-font-size, 16px); font-weight: 500;
+    touch-action: manipulation;
 }
-.keyword-word:hover, .keyword-word:focus-visible { border-bottom-color: currentColor; }
-.keyword-word.is-active { border-bottom-color: currentColor; font-weight: 700; }
+.keyword-word:hover { border-bottom-color: currentColor; }
+.keyword-word:focus-visible {
+    border-bottom-color: currentColor; outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+.keyword-word.is-active { border-bottom-color: currentColor; }
 .keyword-skill { color: #1769aa; }
 .keyword-domain_signal { color: #287a4b; }
 .keyword-candidate { color: #a76400; }

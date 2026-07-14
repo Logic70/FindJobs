@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "findjobs"
 version = "0.1.0"
 description = "A local job collection app"
+license-files = ["THIRD_PARTY_LICENSES.md"]
 requires-python = ">=3.13"
 dependencies = [
     "alembic",

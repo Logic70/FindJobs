@@ -77,6 +77,13 @@ def market_report(keyword_name: str = "Redis") -> dict:
         },
         "related_keywords": [
             {
+                "id": "llm_domain",
+                "name": "大模型领域提及",
+                "kind": "domain_signal",
+                "job_count": 6,
+                "share_of_keyword": 1.0,
+            },
+            {
                 "id": "python",
                 "name": "Python",
                 "kind": "skill",
@@ -92,6 +99,15 @@ def market_report(keyword_name: str = "Redis") -> dict:
                 "locations": ["北京"],
             }
         ],
+    }
+    domain_keyword = {
+        **keyword,
+        "id": "llm_domain",
+        "name": "大模型领域提及",
+        "kind": "domain_signal",
+        "category": "领域信号",
+        "job_count": 9,
+        "job_coverage": 0.9,
     }
     return {
         "schema_version": 3,
@@ -163,7 +179,7 @@ def market_report(keyword_name: str = "Redis") -> dict:
                 "min_company_count": 2,
                 "max_keywords": 80,
             },
-            "keywords": [keyword],
+            "keywords": [domain_keyword, keyword],
             "fact_boundary": "Candidates never affect recommendations.",
         },
     }
@@ -243,8 +259,55 @@ def test_market_page_keyword_buttons_carry_job_count_from_report(
     response = client(tmp_path, report_path).get("/market")
 
     assert response.status_code == 200
-    job_count = str(report["keyword_analysis"]["keywords"][0]["job_count"])
-    name = report["keyword_analysis"]["keywords"][0]["name"]
+    keyword = next(
+        item
+        for item in report["keyword_analysis"]["keywords"]
+        if item["id"] == "candidate_redis"
+    )
+    job_count = str(keyword["job_count"])
+    name = keyword["name"]
     assert f'data-job-count="{job_count}"' in response.text
     assert f'aria-label="{name} · {job_count} 个岗位"' in response.text
     assert f'title="{name} · {job_count} 个岗位"' in response.text
+
+
+def test_market_page_excludes_non_actionable_llm_domain_signal(
+    tmp_path: Path,
+) -> None:
+    report_path = tmp_path / "market-analysis.json"
+    write_report(report_path, market_report())
+
+    response = client(tmp_path, report_path).get("/market")
+
+    assert response.status_code == 200
+    assert "大模型领域提及" not in response.text
+    assert "llm_domain" not in response.text
+    assert "Redis" in response.text
+
+
+def test_market_page_loads_vendored_cloud_layout_before_market_script(
+    tmp_path: Path,
+) -> None:
+    report_path = tmp_path / "market-analysis.json"
+    write_report(report_path, market_report())
+    test_client = client(tmp_path, report_path)
+
+    response = test_client.get("/market")
+    asset = test_client.get("/static/d3-cloud.js")
+
+    assert response.status_code == 200
+    assert response.text.index('/static/d3-cloud.js') < response.text.index(
+        '/static/market.js'
+    )
+    assert asset.status_code == 200
+    assert "layout" in asset.text
+    assert "cloud" in asset.text
+
+
+def test_vendored_cloud_layout_license_is_documented() -> None:
+    license_path = Path(__file__).parents[1] / "THIRD_PARTY_LICENSES.md"
+    content = license_path.read_text(encoding="utf-8")
+
+    assert "d3-cloud 1.2.9" in content
+    assert "https://github.com/jasondavies/d3-cloud" in content
+    assert "BSD 3-Clause License" in content

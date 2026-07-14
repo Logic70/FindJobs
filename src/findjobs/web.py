@@ -379,10 +379,36 @@ def create_app(
             raise ValueError("市场分析文件缺少关键词数据，请重新生成。")
         return report
 
+    def _market_report_for_web(report: dict) -> dict:
+        excluded_ids = {"llm_domain"}
+        keyword_analysis = report["keyword_analysis"]
+        keywords = [
+            {
+                **item,
+                "related_keywords": [
+                    related
+                    for related in item.get("related_keywords", [])
+                    if str(related.get("id")) not in excluded_ids
+                ],
+            }
+            for item in keyword_analysis["keywords"]
+            if str(item.get("id")) not in excluded_ids
+        ]
+        domain_signals = [
+            item
+            for item in report.get("domain_signals", [])
+            if str(item.get("id")) not in excluded_ids
+        ]
+        return {
+            **report,
+            "domain_signals": domain_signals,
+            "keyword_analysis": {**keyword_analysis, "keywords": keywords},
+        }
+
     @app.get("/market")
     def market(request: Request):
         try:
-            report = _load_market_report()
+            report = _market_report_for_web(_load_market_report())
         except ValueError as exc:
             return templates.TemplateResponse(
                 request,
