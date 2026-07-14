@@ -9,7 +9,7 @@ Provides two entry points:
 
 Version
 -------
-``CLASSIFICATION_VERSION = "2.1.0"`` -- increment whenever the contract
+``CLASSIFICATION_VERSION = "2.1.1"`` -- increment whenever the contract
 (reason codes, status semantics, or pattern logic) changes in a way that
 stale persisted data would not reflect.
 """
@@ -24,7 +24,7 @@ from dataclasses import dataclass
 # Version & result type
 # ---------------------------------------------------------------------------
 
-CLASSIFICATION_VERSION = "2.1.0"
+CLASSIFICATION_VERSION = "2.1.1"
 
 
 @dataclass(frozen=True)
@@ -271,7 +271,9 @@ _NON_CYBER_ROLE_CLUES: list[re.Pattern] = [
     # Administration, HR, finance (generic office roles)
     re.compile(r"(行政|人事|HR|财务|会计|出纳|前台|后勤|保洁|总务|秘书|助理|文员)"),
     # Manufacturing, production, processing
-    re.compile(r"(生产|制造|工厂|车间|流水线|设备|机修|电工|焊工|钳工|模具|冲压|注塑)"),
+    re.compile(r"(生产|制造|工厂|车间|流水线|机修|电工|焊工|钳工|模具|冲压|注塑)"),
+    re.compile(r"(生产设备|制造设备|设备维护|设备维修|设备管理|设备工程|"
+               r"设备安装|设备调试|设备操作|设备保养|设备巡检)"),
     re.compile(r"(质检|品控|检验|检测|QA|QC|品管|品控|化验)"),
     re.compile(r"(数据中心电气|电气运维|暖通运维|机房电气)"),
     re.compile(r"(PC加工|加工[主管]?|包装|灌装|组装|车工|铣工)"),

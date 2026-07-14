@@ -707,7 +707,7 @@ class TestSourcesCli:
         result = runner.invoke(app, ["sources"])
 
         assert result.exit_code == 0, result.output
-        assert "Configured sources: 26/27 active" in result.output
+        assert "Configured sources: 28/29 active" in result.output
         assert "tencent" in result.output
         assert "zhipu" in result.output
         assert "01ai" in result.output

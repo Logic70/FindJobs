@@ -1,0 +1,71 @@
+{
+  "Code": 200,
+  "Count": 5,
+  "Data": [
+    {
+      "JobAdId": "1001",
+      "JobAdName": "安全研发工程师",
+      "LocNames": ["北京"],
+      "Salary": "30k-50k",
+      "Duty": "<p>岗位职责：</p><ul><li>负责公司安全产品的设计与研发</li><li>参与安全架构设计与评审</li><li>跟踪前沿安全技术</li></ul>",
+      "Require": "<p>任职要求：</p><ul><li>本科及以上学历，计算机或信息安全相关专业</li><li>3年以上安全开发经验</li><li>熟悉常见安全漏洞原理及修复方案</li></ul>",
+      "ClassificationOne": "技术类",
+      "ClassificationTwo": "研发",
+      "Kind": "全职",
+      "PostDate": "2026-07-01",
+      "PostDateInt": 1780272000
+    },
+    {
+      "JobAdId": "1002",
+      "JobAdName": "高级安全运营工程师",
+      "LocNames": ["北京", "深圳"],
+      "Salary": "",
+      "Duty": "<p>岗位职责：</p><ul><li>负责安全运营平台的建设与维护</li><li>负责安全事件监控与应急响应</li></ul>",
+      "Require": "<p>任职要求：</p><ul><li>本科及以上学历</li><li>5年以上安全运营经验</li><li>熟悉SIEM、SOC运营流程</li></ul>",
+      "ClassificationOne": "技术类",
+      "ClassificationTwo": "安全运营",
+      "Kind": "全职",
+      "PostDate": "2026-06-15",
+      "PostDateInt": 1780214400
+    },
+    {
+      "JobAdId": "1003",
+      "JobAdName": "安全算法工程师",
+      "LocNames": ["北京"],
+      "Salary": "40k-60k·15薪",
+      "Duty": "<p>岗位职责：</p><ul><li>负责安全AI算法的研发和优化</li><li>设计网络流量分析算法模型</li></ul>",
+      "Require": "<p>任职要求：</p><ul><li>硕士及以上学历</li><li>扎实的算法和数据结构基础</li></ul>",
+      "ClassificationOne": "技术类",
+      "ClassificationTwo": "算法",
+      "Kind": "全职",
+      "PostDate": "2026-07-10",
+      "PostDateInt": 1780358400
+    },
+    {
+      "JobAdId": "1004",
+      "JobAdName": "风控策略分析师",
+      "LocNames": ["上海"],
+      "Salary": "20k-35k",
+      "Duty": "<p>岗位职责：</p><ul><li>负责业务风控策略的制定和优化</li><li>分析风险数据，识别风险特征</li></ul>",
+      "Require": "<p>任职要求：</p><ul><li>本科及以上学历，金融或统计相关专业</li><li>3年以上风控策略经验</li></ul>",
+      "ClassificationOne": "职能类",
+      "ClassificationTwo": "风控",
+      "Kind": "全职",
+      "PostDate": "2026-05-20",
+      "PostDateInt": 1779926400
+    },
+    {
+      "JobAdId": "1005",
+      "JobAdName": "Go语言后端开发工程师",
+      "LocNames": ["北京", "杭州", "深圳"],
+      "Salary": null,
+      "Duty": "<p>岗位职责：</p><ul><li>负责后端服务的设计与开发</li><li>参与微服务架构的优化</li></ul>",
+      "Require": "<p>任职要求：</p><ul><li>本科及以上学历</li><li>3年以上Go语言开发经验</li><li>熟悉分布式系统设计</li></ul>",
+      "ClassificationOne": "技术类",
+      "ClassificationTwo": "研发",
+      "Kind": "全职",
+      "PostDate": "2026-07-12",
+      "PostDateInt": 1780444800
+    }
+  ]
+}

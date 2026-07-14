@@ -1729,6 +1729,8 @@ class TestSourcesConfig:
             "chaitin-careers",
             "sangfor-careers",
             "qianxin-careers",
+            "topsec-careers",
+            "stepfun-careers",
         }
         for s in config.sources:
             if s.slug in active_slugs:

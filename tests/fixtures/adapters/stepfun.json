@@ -1,0 +1,169 @@
+{
+  "code": 0,
+  "codeType": 0,
+  "success": true,
+  "data": {
+    "jobStats": {
+      "total": 7
+    },
+    "jobs": [
+      {
+        "id": "step-algo-01",
+        "title": "AI安全算法研究员",
+        "status": "open",
+        "commitment": "全职",
+        "openedAt": "2026-07-01T00:00:00",
+        "jobDescription": "<p><strong>【岗位描述】</strong></p><ol><li>研究AI安全前沿算法</li><li>设计和实现安全模型</li></ol><p><strong>【岗位要求】</strong></p><ol><li>计算机相关专业硕士及以上学历</li><li>有安全算法研究经验</li></ol>",
+        "locations": [
+          {
+            "provinceName": "北京市",
+            "cityName": "海淀区"
+          }
+        ],
+        "salaryText": "30k-50k",
+        "zhineng": {
+          "id": 50001,
+          "name": "算法研究"
+        }
+      },
+      {
+        "id": "step-sys-01",
+        "title": "高性能网络系统工程师",
+        "status": "open",
+        "commitment": "全职",
+        "openedAt": "2026-07-02T00:00:00",
+        "jobDescription": "<p><strong>【岗位描述】</strong></p><ol><li>负责大模型训练集群的高性能网络架构设计和优化</li><li>负责大规模分布式AI训练的网络性能调优</li></ol><p><strong>【岗位要求】</strong></p><ol><li>熟悉高性能网络技术</li><li>了解分布式训练通信模式</li></ol>",
+        "locations": [
+          {
+            "provinceName": "北京市",
+            "cityName": "海淀区"
+          }
+        ],
+        "salaryText": null,
+        "zhineng": {
+          "id": 50001,
+          "name": "算法研究"
+        }
+      },
+      {
+        "id": "step-sys-02",
+        "title": "大模型训练框架系统工程师",
+        "status": "open",
+        "commitment": "全职",
+        "openedAt": "2026-07-03T00:00:00",
+        "jobDescription": "<p><strong>【工作职责】</strong></p><ol><li>设计和开发大规模模型训练框架</li><li>优化分布式训练性能和稳定性</li></ol><p><strong>【任职要求】</strong></p><ol><li>熟悉PyTorch等深度学习框架</li><li>了解分布式训练原理</li></ol>",
+        "locations": [
+          {
+            "provinceName": "北京市",
+            "cityName": "海淀区"
+          }
+        ],
+        "salaryText": "40k-60k·15薪",
+        "zhineng": {
+          "id": 50001,
+          "name": "算法研究"
+        }
+      },
+      {
+        "id": "step-sys-03",
+        "title": "大模型推理优化系统工程师",
+        "status": "open",
+        "commitment": "全职",
+        "openedAt": "2026-07-04T00:00:00",
+        "jobDescription": "<p><strong>【岗位描述】</strong></p><ol><li>负责大模型推理服务的性能优化</li><li>设计和实现推理加速方案</li></ol><p><strong>【岗位要求】</strong></p><ol><li>熟悉GPU编程和推理优化</li><li>了解vLLM等推理框架</li></ol>",
+        "locations": [
+          {
+            "provinceName": "上海市",
+            "cityName": "徐汇区"
+          }
+        ],
+        "salaryText": "50k-70k",
+        "zhineng": {
+          "id": 50001,
+          "name": "算法研究"
+        }
+      },
+      {
+        "id": "step-sys-04",
+        "title": "大模型后训练系统工程师",
+        "status": "open",
+        "commitment": "全职",
+        "openedAt": "2026-07-05T00:00:00",
+        "jobDescription": "<p><strong>【岗位描述】</strong></p><ol><li>负责大模型后训练系统的设计和开发</li><li>优化模型对齐和微调流程</li></ol><p><strong>【岗位要求】</strong></p><ol><li>熟悉大模型训练和微调技术</li></ol>",
+        "locations": [
+          {
+            "provinceName": "北京市",
+            "cityName": "朝阳区"
+          }
+        ],
+        "salaryText": "45k-65k",
+        "zhineng": {
+          "id": 50001,
+          "name": "算法研究"
+        }
+      },
+      {
+        "id": "step-multi-01",
+        "title": "安全研发工程师",
+        "status": "open",
+        "commitment": "全职",
+        "openedAt": "2026-07-06T00:00:00",
+        "jobDescription": "<p><strong>【岗位描述】</strong></p><ol><li>负责公司安全产品的研发工作</li><li>参与安全架构设计</li></ol><p><strong>【岗位要求】</strong></p><ol><li>本科及以上学历</li><li>有安全开发经验</li></ol>",
+        "locations": [
+          {
+            "provinceName": "北京市",
+            "cityName": "海淀区"
+          },
+          {
+            "provinceName": "浙江省",
+            "cityName": "杭州市"
+          }
+        ],
+        "salaryText": "35k-55k",
+        "zhineng": {
+          "id": 50002,
+          "name": "安全研发"
+        }
+      },
+      {
+        "id": "step-slrng-01",
+        "title": "安全架构师",
+        "status": "open",
+        "commitment": "全职",
+        "openedAt": "2026-07-08T00:00:00",
+        "jobDescription": "<p>负责安全架构</p>",
+        "locations": [
+          {
+            "provinceName": "北京市",
+            "cityName": "海淀区"
+          }
+        ],
+        "salaryText": null,
+        "salaryRange": "50k-80k",
+        "zhineng": {
+          "id": 50004,
+          "name": "安全架构"
+        }
+      },
+      {
+        "id": "step-closed-01",
+        "title": "AI平台研发工程师",
+        "status": "closed",
+        "commitment": "全职",
+        "openedAt": "2026-07-07T00:00:00",
+        "jobDescription": "<p>负责AI平台的研发工作</p>",
+        "locations": [
+          {
+            "provinceName": "北京市",
+            "cityName": "海淀区"
+          }
+        ],
+        "salaryText": null,
+        "zhineng": {
+          "id": 50003,
+          "name": "平台研发"
+        }
+      }
+    ]
+  }
+}

@@ -24,6 +24,8 @@ from findjobs.adapters import netease           # noqa: F401
 from findjobs.adapters import iflytek           # noqa: F401
 from findjobs.adapters import qianxin           # noqa: F401
 from findjobs.adapters import sangfor           # noqa: F401
+from findjobs.adapters import stepfun           # noqa: F401
+from findjobs.adapters import topsec            # noqa: F401
 
 __all__ = [
     "AdapterContext",

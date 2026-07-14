@@ -1040,6 +1040,40 @@ class TestClassifyJob:
         )
         assert "Security" in tags
 
+    # ---------------------------------------------------------------- #
+    # Equipment-clue regression / counter-regression tests
+    # ---------------------------------------------------------------- #
+
+    def test_security_expert_with_network_device_not_excluded(self):
+        """安全设备 in a TopSec-like description must NOT trigger non-cyber exclusion."""
+        from findjobs.classify import classify_job_detailed
+
+        result = classify_job_detailed(
+            "安全运营专家(J14064)",
+            (
+                "职责: 负责安全告警分析与研判、流量包分析、安全事件应急响应"
+                "与取证溯源、攻击链分析、恶意代码分析、渗透测试报告解读和"
+                "团队技术交付。"
+                "要求: 熟悉主流网络安全设备、流量包分析、安全事件溯源、"
+                "攻防工具、入侵分析排查，持有CISP-PTE优先。"
+            ),
+            "安全类 / 北京 / 全职",
+        )
+        assert "Security" in result.tags
+        assert result.relevance_status == "review"
+        assert "functional_security_role_requires_review" in result.reasons
+
+    def test_production_equipment_maintenance_excluded(self):
+        """Production equipment maintenance roles remain excluded as non-cyber."""
+        from findjobs.classify import classify_job
+
+        tags = classify_job(
+            "生产设备运维工程师",
+            "负责生产设备日常维护、保养、安全巡检。",
+            "生产制造类",
+        )
+        assert tags == []
+
 
 # ---------------------------------------------------------------------------
 # collection.py — persistence (needs a real database)

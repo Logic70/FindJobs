@@ -141,6 +141,18 @@ companies:
     homepage_url: https://www.qianxin.com
     careers_url: https://www.hotjob.cn/wt/qianxin/web/index#/
 
+  - slug: topsec
+    name: TopSec
+    description: TopSec / 天融信
+    homepage_url: https://www.topsec.com.cn
+    careers_url: https://topsec.zhiye.com/social/jobs
+
+  - slug: stepfun
+    name: StepFun
+    description: StepFun / 阶跃星辰
+    homepage_url: https://www.stepfun.com
+    careers_url: https://app.mokahr.com/campus-recruitment/step/141903
+
 sources:
   - slug: tencent-careers
     name: Tencent Official Careers
@@ -409,5 +421,25 @@ sources:
     base_url: https://www.hotjob.cn/wt/qianxin/web/index
     fetch_url: https://www.hotjob.cn/wt/qianxin/web/mode400/position/list
     adapter: qianxin_official
+    is_active: true
+    collection_completeness: complete_for_target_scope
+
+  - slug: topsec-careers
+    name: TopSec Official Careers
+    company_slug: topsec
+    source_type: official_careers
+    base_url: https://topsec.zhiye.com/social/jobs
+    fetch_url: https://topsec.zhiye.com/api/Jobad/GetJobAdPageList
+    adapter: topsec_official
+    is_active: true
+    collection_completeness: complete_for_target_scope
+
+  - slug: stepfun-careers
+    name: StepFun Official Campus Careers
+    company_slug: stepfun
+    source_type: official_careers
+    base_url: https://app.mokahr.com/campus-recruitment/step/141903
+    fetch_url: https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2
+    adapter: stepfun_moka
     is_active: true
     collection_completeness: complete_for_target_scope
