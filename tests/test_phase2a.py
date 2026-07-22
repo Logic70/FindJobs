@@ -205,6 +205,25 @@ class TestDetailedExcluded:
         assert result.relevance_status == "excluded"
         assert REASON_ALGORITHM in result.reasons
 
+    @pytest.mark.parametrize(
+        ("title", "job_type"),
+        [
+            ("具身智能算法工程师", "技术类"),
+            ("机器人运动控制算法工程师", "技术类"),
+            ("具身智能软件工程师", "算法类"),
+        ],
+    )
+    def test_embodied_intelligence_algorithm_roles(self, title, job_type):
+        """Embodied-intelligence sources never relax algorithm exclusion."""
+        result = classify_job_detailed(
+            title,
+            "负责机器人模型部署、推理优化和具身智能系统研发。",
+            job_type,
+        )
+        assert result.tags == ()
+        assert result.relevance_status == "excluded"
+        assert REASON_ALGORITHM in result.reasons
+
 
 # ===================================================================
 # classify_job_detailed  —  target cases

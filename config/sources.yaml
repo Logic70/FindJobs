@@ -153,6 +153,18 @@ companies:
     homepage_url: https://www.stepfun.com
     careers_url: https://app.mokahr.com/campus-recruitment/step/141903
 
+  - slug: agibot
+    name: AgiBot
+    description: AgiBot / 智元机器人
+    homepage_url: https://www.agibot.com.cn
+    careers_url: https://www.agibot.com.cn/join_us
+
+  - slug: engineai
+    name: EngineAI
+    description: EngineAI / 众擎机器人
+    homepage_url: https://www.engineai.com.cn
+    careers_url: https://www.engineai.com.cn/career
+
 sources:
   - slug: tencent-careers
     name: Tencent Official Careers
@@ -441,5 +453,25 @@ sources:
     base_url: https://app.mokahr.com/campus-recruitment/step/141903
     fetch_url: https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2
     adapter: stepfun_moka
+    is_active: true
+    collection_completeness: complete_for_target_scope
+
+  - slug: agibot-feishu
+    name: AgiBot Feishu Careers
+    company_slug: agibot
+    source_type: official_careers
+    base_url: https://agirobot.jobs.feishu.cn
+    fetch_url: ""
+    adapter: feishu_official
+    is_active: true
+    collection_completeness: complete_for_target_scope
+
+  - slug: engineai-feishu
+    name: EngineAI Feishu Careers
+    company_slug: engineai
+    source_type: official_careers
+    base_url: https://dx3a2bminsq.jobs.feishu.cn
+    fetch_url: ""
+    adapter: feishu_official
     is_active: true
     collection_completeness: complete_for_target_scope

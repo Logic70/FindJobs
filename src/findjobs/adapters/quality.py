@@ -88,7 +88,10 @@ ADAPTER_QUALITY_GATES: dict[str, AdapterQualityGate] = {
         pagination="blank full scan for small sites; TARGET_KEYWORDS for large sites",
         deduplication="id/job_id, fallback title+location",
         detail_enrichment="standard Feishu fields include job description and requirements",
-        live_smoke="2026-07-01 completed for Xiaomi/Zhipu/MiniMax/01.AI/Baichuan/ModelBest",
+        live_smoke=(
+            "2026-07-22 completed for Xiaomi/Zhipu/MiniMax/01.AI/Baichuan/"
+            "ModelBest/AgiBot/EngineAI"
+        ),
     ),
     "kuaishou_official": AdapterQualityGate(
         adapter="kuaishou_official",

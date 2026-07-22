@@ -1731,6 +1731,8 @@ class TestSourcesConfig:
             "qianxin-careers",
             "topsec-careers",
             "stepfun-careers",
+            "agibot-feishu",
+            "engineai-feishu",
         }
         for s in config.sources:
             if s.slug in active_slugs:
@@ -1766,10 +1768,40 @@ class TestSourcesConfig:
             "01ai-feishu",
             "baichuan-feishu",
             "modelbest-feishu",
+            "agibot-feishu",
+            "engineai-feishu",
         }:
             source = sources_by_slug[slug]
             assert source.adapter in {"feishu_official", "moka_official"}
             assert source.is_active is True
+
+    def test_verified_embodied_intelligence_sources(self):
+        """Official embodied-intelligence ATS links stay active and verified."""
+        from findjobs.config import load_sources
+
+        config = load_sources()
+        companies = {company.slug: company for company in config.companies}
+        sources = {source.slug: source for source in config.sources}
+
+        assert companies["agibot"].careers_url == "https://www.agibot.com.cn/join_us"
+        assert companies["engineai"].careers_url == (
+            "https://www.engineai.com.cn/career"
+        )
+
+        for source_slug, company_slug, base_url in (
+            ("agibot-feishu", "agibot", "https://agirobot.jobs.feishu.cn"),
+            (
+                "engineai-feishu",
+                "engineai",
+                "https://dx3a2bminsq.jobs.feishu.cn",
+            ),
+        ):
+            source = sources[source_slug]
+            assert source.company_slug == company_slug
+            assert source.base_url == base_url
+            assert source.adapter == "feishu_official"
+            assert source.is_active is True
+            assert source.collection_completeness == "complete_for_target_scope"
 
 
 # ---------------------------------------------------------------------------
